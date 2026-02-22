@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1",
+  "eventId": "2bf9d0e2f3c4567890123456789012345678234901234567234901234567890c",
+  "eventType": "BATTLE",
+  "triggerId": 9,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440009",
+  "timestamp": "2024-06-01T12:08:00.000Z",
+  "ingestedAt": "2024-06-01T12:08:00.050Z",
+  "source": "live",
+  "seqNo": 9,
+  "user": {
+    "userId": "0",
+    "uniqueId": "system"
+  },
+  "payload": {
+    "battleId": "battle_99887766",
+    "battleStatus": "STARTED",
+    "participants": [
+      {
+        "userId": "7001",
+        "uniqueId": "streamer_a",
+        "displayName": "Streamer A",
+        "score": 0
+      },
+      {
+        "userId": "7002",
+        "uniqueId": "streamer_b",
+        "displayName": "Streamer B",
+        "score": 0
+      }
+    ]
+  }
+}

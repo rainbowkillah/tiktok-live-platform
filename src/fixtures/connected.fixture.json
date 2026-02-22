@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1",
+  "eventId": "3cf0e1f3a4d5678901234567890123456789345012345678345012345678901d",
+  "eventType": "CONNECTED",
+  "triggerId": 10,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440010",
+  "timestamp": "2024-06-01T12:09:00.000Z",
+  "ingestedAt": "2024-06-01T12:09:00.050Z",
+  "source": "live",
+  "seqNo": 0,
+  "user": {
+    "userId": "0",
+    "uniqueId": "system"
+  },
+  "payload": {
+    "roomId": "7123456789",
+    "isConnected": true,
+    "provider": "direct"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1",
+  "eventId": "d6f4c5d7e8b9012345678901234567890123def4567890123def456789012345",
+  "eventType": "FOLLOW",
+  "triggerId": 4,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440004",
+  "timestamp": "2024-06-01T12:03:00.000Z",
+  "ingestedAt": "2024-06-01T12:03:00.050Z",
+  "source": "live",
+  "seqNo": 4,
+  "user": {
+    "userId": "1004",
+    "uniqueId": "newfollower7",
+    "displayName": "New Follower",
+    "followRole": 0,
+    "isModerator": false,
+    "isSubscriber": false
+  },
+  "payload": {
+    "displayType": "pm_mt_msg_viewer_follow"
+  }
+}

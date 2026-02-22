@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1",
+  "eventId": "4d01e2a4b5e6789012345678901234567890456123456789456123456789012e",
+  "eventType": "DISCONNECTED",
+  "triggerId": 11,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440011",
+  "timestamp": "2024-06-01T13:00:00.000Z",
+  "ingestedAt": "2024-06-01T13:00:00.050Z",
+  "source": "live",
+  "seqNo": 500,
+  "user": {
+    "userId": "0",
+    "uniqueId": "system"
+  },
+  "payload": {
+    "code": 1000,
+    "reason": "Stream ended normally",
+    "willReconnect": false
+  }
+}

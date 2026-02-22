@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1",
+  "eventId": "e7f5c6d8e9b0123456789012345678901234ef05678901234ef056789012345a",
+  "eventType": "SHARE",
+  "triggerId": 5,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440005",
+  "timestamp": "2024-06-01T12:04:00.000Z",
+  "ingestedAt": "2024-06-01T12:04:00.050Z",
+  "source": "live",
+  "seqNo": 5,
+  "user": {
+    "userId": "1005",
+    "uniqueId": "sharer123",
+    "displayName": "Sharer",
+    "followRole": 1,
+    "isModerator": false,
+    "isSubscriber": false
+  },
+  "payload": {
+    "displayType": "pm_mt_msg_viewer_share"
+  }
+}

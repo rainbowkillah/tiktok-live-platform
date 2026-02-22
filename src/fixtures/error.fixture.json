@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1",
+  "eventId": "5e12f3b5c6f7890123456789012345678901567234567890567234567890123f",
+  "eventType": "ERROR",
+  "triggerId": 12,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440012",
+  "timestamp": "2024-06-01T12:30:00.000Z",
+  "ingestedAt": "2024-06-01T12:30:00.050Z",
+  "source": "live",
+  "seqNo": 250,
+  "user": {
+    "userId": "0",
+    "uniqueId": "system"
+  },
+  "payload": {
+    "message": "Connection lost: ECONNRESET",
+    "code": "ECONNRESET",
+    "stack": "Error: ECONNRESET\n    at TikTokLiveConnection._onClose (/app/ingest/index.js:42:15)"
+  }
+}
