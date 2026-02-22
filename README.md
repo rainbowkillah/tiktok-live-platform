@@ -3,6 +3,7 @@
 Production-ready event platform for ingesting, normalizing, storing, and acting on TikTok LIVE stream events.
 
 > **Status**: Phase 1 — Discovery & Planning
+> **Github Project**:[Project Board](https://github.com/users/rainbowkillah/projects/15)
 
 ## Overview
 
