@@ -8,8 +8,12 @@ const EventFeed = () => {
     const eventSource = new EventSource(`/streams/${streamId}/events`);
 
     eventSource.onmessage = (event) => {
-      const newEvent = JSON.parse(event.data);
-      setEvents((prevEvents) => [newEvent, ...prevEvents]);
+      try {
+        const newEvent = JSON.parse(event.data);
+        setEvents((prevEvents) => [newEvent, ...prevEvents]);
+      } catch (error) {
+        console.error('Failed to parse event:', error);
+      }
     };
 
     eventSource.onerror = (error) => {
