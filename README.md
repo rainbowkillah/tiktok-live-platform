@@ -2,10 +2,11 @@
 
 Production-ready event platform for ingesting, normalizing, storing, and acting on TikTok LIVE stream events.
 
-> **Status**: Phase 1 — Discovery & Planning
 > **Github Project**:[Project Roadmap](https://github.com/users/rainbowkillah/projects/15/views/1)
                     :[Project Board](https://github.com/users/rainbowkillah/projects/15/views/2)
                     :[Project Table](https://github.com/users/rainbowkillah/projects/15/views/3)
+
+> **Status**: Phase 1 — Discovery & Planning
 ## Overview
 
 This platform wraps [`tiktok-live-connector`](https://www.npmjs.com/package/tiktok-live-connector) as its ingestion layer and adds:
