@@ -106,8 +106,10 @@ CREATE TABLE events (
     session_id     UUID        NOT NULL REFERENCES sessions(id),
     stream_id      TEXT        NOT NULL REFERENCES streams(id),
     event_type     TEXT        NOT NULL,           -- CHAT, GIFT, LIKE, etc.
+    trigger_id     INTEGER     NOT NULL,           -- Numeric trigger mapping from UnifiedEvent
     schema_version TEXT        NOT NULL DEFAULT '1',
     user_id        TEXT,                           -- TikTok user ID (nullable: lifecycle events have no user)
+    raw_type       TEXT,                           -- Original proto/event type when event_type='RAW'
     event_data     JSONB       NOT NULL,           -- Full UnifiedEvent JSON
     source         event_source NOT NULL DEFAULT 'live',
     seq_no         BIGINT      NOT NULL DEFAULT 0,
@@ -120,7 +122,9 @@ CREATE TABLE events (
 CREATE INDEX idx_events_session_timestamp  ON events(session_id, timestamp DESC);
 CREATE INDEX idx_events_stream_timestamp   ON events(stream_id, timestamp DESC);
 CREATE INDEX idx_events_type_timestamp     ON events(event_type, timestamp DESC);
+CREATE INDEX idx_events_trigger_timestamp  ON events(trigger_id, timestamp DESC);
 CREATE INDEX idx_events_user_timestamp     ON events(user_id, timestamp DESC) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_events_raw_type_timestamp ON events(raw_type, timestamp DESC) WHERE raw_type IS NOT NULL;
 CREATE INDEX idx_events_archived           ON events(archived_at) WHERE archived_at IS NOT NULL;
 
 -- JSONB indexes for common filter patterns
@@ -137,6 +141,8 @@ CREATE INDEX idx_events_data_gin           ON events USING GIN (event_data);
 - `event_id` — the SHA-256 dedupe key from UnifiedEvent (computed by normalizer). Unique constraint enables idempotent inserts via `ON CONFLICT (event_id) DO NOTHING`
 - `event_data` — the full UnifiedEvent JSON blob. This is the source of truth; other columns are denormalized for query performance
 - `seq_no` — TikTok sequence number from the WebSocket frame
+- `trigger_id` — numeric trigger mapping aligned to `UnifiedEvent.triggerId` for fast rule filtering and dispatch analytics
+- `raw_type` — the unmapped proto/event type (populated when `event_type='RAW'`) for fast diagnostics and analytics
 
 ---
 
@@ -218,6 +224,8 @@ CREATE TABLE actions_log (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     rule_id           UUID        NOT NULL REFERENCES rules(id),
     event_id          TEXT        NOT NULL,           -- References events.event_id
+    stream_id         TEXT        REFERENCES streams(id), -- denormalized for per-stream audits
+    session_id        UUID        REFERENCES sessions(id), -- denormalized for replay/session audits
     rendered_template TEXT,                           -- The template after placeholder substitution
     executed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status            action_status NOT NULL,
@@ -228,6 +236,8 @@ CREATE TABLE actions_log (
 
 CREATE INDEX idx_actions_log_rule_id    ON actions_log(rule_id, executed_at DESC);
 CREATE INDEX idx_actions_log_event_id   ON actions_log(event_id);
+CREATE INDEX idx_actions_log_stream_id  ON actions_log(stream_id, executed_at DESC);
+CREATE INDEX idx_actions_log_session_id ON actions_log(session_id, executed_at DESC);
 CREATE INDEX idx_actions_log_status     ON actions_log(status, executed_at DESC);
 ```
 
