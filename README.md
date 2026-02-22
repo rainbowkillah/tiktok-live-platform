@@ -34,5 +34,5 @@ This platform wraps [`tiktok-live-connector`](https://www.npmjs.com/package/tikt
 ## License
 
 MIT
-[contextLink]: `agents.prompt.yaml`
+[contextLink]: AGENTS.prompt.yaml
 [projectLink]: https://github.com/users/rainbowkillah/projects/15
