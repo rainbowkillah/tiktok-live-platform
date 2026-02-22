@@ -25,6 +25,7 @@ Reviewers should verify:
 - [ ] Env var reference covers all externalized configuration
 - [ ] Risk register covers TikTok fragility, rate limits, proto drift, and session secrets
 - [ ] Replayability path is explicitly described
+- [ ] Redis Streams contracts (`ttlc:raw`, `ttlc:events`, `ttlc:dlq`) are field-level explicit
 - [ ] Deployment topology (Docker Compose first) is enforced
 
 ---
@@ -216,6 +217,65 @@ The ingestion layer wraps [`tiktok-live-connector`](https://www.npmjs.com/packag
 - Implements retry with exponential back-off (initial 500 ms, max 30 s, multiplier 2×)
 - Dead-letter queue: events that exceed max retries go to `ttlc:dlq`
 - Records audit log and metrics (forwarded count, retry count, DLQ count)
+
+---
+
+### 3.8 Service Boundary & Redis Stream Contract (Implementation Gate)
+
+This section defines implementation-level contracts so each service can ship independently without hidden coupling.
+
+#### Boundary rules (must hold)
+
+- **Ingest** publishes raw envelopes to `ttlc:raw` and does not write to Postgres.
+- **Normalizer** consumes `ttlc:raw` and publishes canonical envelopes to `ttlc:events`.
+- **Storage Writer** is the only service that persists canonical events into Postgres tables.
+- **API / Rule Engine / Forwarder** consume canonical events from `ttlc:events` and must not depend on `ttlc:raw` internals.
+- **Replay** follows the same contracts (`ttlc:raw` → `ttlc:events`) with `source='replay'` and a new `sessionId`.
+
+#### Redis Stream contract v1
+
+**Stream: `ttlc:raw` (producer: ingest, consumer group: `normalizer`)**
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `schemaVersion` | string | yes | Fixed to `raw.v1` for envelope compatibility |
+| `streamId` | string | yes | TikTok room ID |
+| `sessionId` | string (uuid) | yes | Created on connect/reconnect/replay start |
+| `source` | enum(`live`,`replay`) | yes | Distinguishes live ingest from replay |
+| `type` | string | yes | Raw TikTok event/proto type |
+| `seqNo` | integer >= 0 | yes | Ordering + dedupe input |
+| `timestamp` | ISO datetime | yes | Event time if available, else ingest time |
+| `ingestedAt` | ISO datetime | yes | Ingest service receive time |
+| `data` | JSON object or base64 string | yes | Raw payload |
+
+**Stream: `ttlc:events` (producer: normalizer, consumer groups: `storage`, `api`, `forwarder`)**
+
+- Message field `event` contains serialized `UnifiedEvent v1` JSON.
+- Normalizer validates payloads against `docs/contracts/unified-event.v1.schema.json` before publish.
+- Optional field `normalizedAt` (ISO datetime) is allowed for observability.
+
+**Stream: `ttlc:dlq` (producer: normalizer/forwarder, consumer group: ops)**
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `stage` | string | yes | `normalizer` or `forwarder` |
+| `reason` | string | yes | Parse/validation/forwarding error category |
+| `error` | string | yes | Sanitized error message |
+| `payload` | string | yes | Original message body |
+| `failedAt` | ISO datetime | yes | Failure timestamp |
+
+#### Consumer-group semantics
+
+- Use explicit groups: `normalizer` on `ttlc:raw`; `storage`, `api`, `forwarder` on `ttlc:events`.
+- Acknowledge (`XACK`) only after side effects complete (publish or DB commit).
+- Retry failures with bounded attempts; exhausted items go to `ttlc:dlq`.
+- Cap streams (`XADD ... MAXLEN ~`) to prevent unbounded Redis growth while Postgres remains source of truth.
+
+#### Implementability verdict
+
+- **Service boundaries are implementable** with this contract.
+- **Redis Stream contract is implementable** once producers/consumers enforce required fields and ack semantics.
+- No cross-service circular dependency remains under this boundary model.
 
 ---
 
