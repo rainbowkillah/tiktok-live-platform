@@ -2,9 +2,11 @@
 
 Production-ready event platform for ingesting, normalizing, storing, and acting on TikTok LIVE stream events.
 
-> **Github Project**:[Project Roadmap](https://github.com/users/rainbowkillah/projects/15/views/1)
-                    :[Project Board](https://github.com/users/rainbowkillah/projects/15/views/2)
-                    :[Project Table](https://github.com/users/rainbowkillah/projects/15/views/3)
+> **Github Project**:
+[Project Issues](https://github.com/rainbowkillah/tiktok-live-platform/issues)
+[Project Roadmap](https://github.com/users/rainbowkillah/projects/15/views/1)
+[Project Board](https://github.com/users/rainbowkillah/projects/15/views/2)
+[Project Table](https://github.com/users/rainbowkillah/projects/15/views/3)
 
 > **Status**: Phase 1 — Discovery & Planning
 ## Overview
