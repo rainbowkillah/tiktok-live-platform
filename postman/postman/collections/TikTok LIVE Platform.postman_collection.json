@@ -1,0 +1,262 @@
+{
+  "info": {
+    "_postman_id": "36abd478-2310-41e0-9ea0-b3040b4c48ab",
+    "name": "TikTok LIVE Platform",
+    "description": "API collection for the TikTok LIVE Connector Platform.\n\nEndpoints for managing TikTok LIVE stream connections, receiving events via SSE, and querying persisted events.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "id": "a8b41043-6807-4711-8944-84d820e9e559",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/healthz",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "healthz"
+          ]
+        },
+        "description": "Returns server health status including uptime, active session count, and event buffer size."
+      },
+      "response": []
+    },
+    {
+      "name": "Detailed Status",
+      "id": "c0159a78-141a-4e4f-a443-78e008fc7197",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "status"
+          ]
+        },
+        "description": "Returns detailed server status including memory usage, session details with circuit breaker state, event bus metrics, and configuration."
+      },
+      "response": []
+    },
+    {
+      "name": "Connect to Stream",
+      "id": "8accbb1c-a949-4ee4-83aa-a8f5f5dbe267",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"uniqueId\": \"streamer_username\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/connect",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connect"
+          ]
+        },
+        "description": "Connect to a TikTok LIVE stream by streamer username (uniqueId).\n\nOptional fields:\n- sessionId: TikTok session cookie (for authenticated features)\n- ttTargetIdc: TikTok datacenter ID\n- oauthToken: OAuth token"
+      },
+      "response": []
+    },
+    {
+      "name": "Disconnect from Stream",
+      "id": "b4d3ff06-0fa7-457a-8a44-b7941862402e",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"uniqueId\": \"streamer_username\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/disconnect",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "disconnect"
+          ]
+        },
+        "description": "Disconnect from a TikTok LIVE stream by streamer username."
+      },
+      "response": []
+    },
+    {
+      "name": "List Sessions",
+      "id": "3a23faa8-2398-412a-94e9-9e7dbcb8d19e",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/sessions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "sessions"
+          ]
+        },
+        "description": "List all active TikTok LIVE stream sessions with connection state, room ID, and circuit breaker status."
+      },
+      "response": []
+    },
+    {
+      "name": "Send Chat Message",
+      "id": "f84515de-1a42-44da-9338-1cc465e6cfac",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"uniqueId\": \"streamer_username\",\n  \"content\": \"Hello from the platform!\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/message",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "message"
+          ]
+        },
+        "description": "Send a chat message to a connected TikTok LIVE stream.\n\nRequires authentication (sessionId or oauthToken configured in .env or passed in /connect)."
+      },
+      "response": []
+    },
+    {
+      "name": "Query Events (REST)",
+      "id": "3f5291ba-2b6b-44f4-823f-215a79b6fbf0",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/events?limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "events"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20",
+              "description": "Max events to return (default: 100)"
+            },
+            {
+              "key": "uniqueId",
+              "value": "",
+              "description": "Filter by streamer username",
+              "disabled": true
+            },
+            {
+              "key": "type",
+              "value": "",
+              "description": "Filter by event type (comment, gift, like, etc.)",
+              "disabled": true
+            },
+            {
+              "key": "since",
+              "value": "",
+              "description": "Filter events after this Unix ms timestamp",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Query persisted events from the SQLite database. Supports filtering by streamer, event type, and timestamp."
+      },
+      "response": []
+    },
+    {
+      "name": "SSE Event Stream",
+      "id": "e45ca740-26e9-463a-97ea-081ca7a56e7b",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/events/sse",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "events",
+            "sse"
+          ],
+          "query": [
+            {
+              "key": "uniqueId",
+              "value": "",
+              "description": "Filter by streamer username",
+              "disabled": true
+            },
+            {
+              "key": "type",
+              "value": "",
+              "description": "Filter by event type",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Server-Sent Events stream of real-time TikTok LIVE events.\n\nEvents are sent in EventEnvelope v1 format:\n\n```\nevent: comment\nid: <uuid>\ndata: {\"id\":\"...\",\"version\":\"v1\",\"type\":\"comment\",...}\n\n ```\n\nNote: Postman may not fully support SSE streaming. For testing, use:\n\n``` bash\ncurl -N http://localhost:3000/events/sse\n\n ```"
+      },
+      "response": []
+    },
+    {
+      "name": "WebSocket Events (notes)",
+      "id": "626062f9-df64-4149-adde-3511ee204c1a",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/events/ws",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "events",
+            "ws"
+          ]
+        },
+        "description": "WebSocket endpoint for real-time event streaming.\n\n**Connect:** `ws://localhost:3000/events/ws`\n\n**Optional query params:**\n\n- `uniqueId` - filter by streamer\n    \n- `type` - comma-separated event types (e.g. `comment,gift`)\n    \n\n**Subscription update (send after connect):**\n\n``` json\n{\"action\":\"subscribe\",\"uniqueId\":\"streamer1\",\"types\":[\"comment\",\"gift\"]}\n\n ```\n\n**Test with wscat:**\n\n``` bash\nwscat -c ws://localhost:3000/events/ws\n\n ```\n\nNote: Postman WebSocket support is limited. Use wscat or a browser for testing."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "id": "ac2c1e2a-77bd-4e8e-a0b4-0aa955a368a8",
+      "key": "baseUrl",
+      "value": "{{baseUrl}}",
+      "type": "string"
+    }
+  ]
+}
