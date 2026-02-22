@@ -1,0 +1,521 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tiktok-live-platform/schemas/unified-event.v1.schema.json",
+  "title": "UnifiedEvent",
+  "description": "UnifiedEvent v1 — canonical normalized event schema for the TikTok LIVE Platform. All TikTok LIVE events are transformed into this schema before storage, routing, and rule evaluation.",
+  "version": "1.0.0",
+  "type": "object",
+
+  "_meta": {
+    "owner": "Claude (Program Lead & Systems Architect)",
+    "github_issue": "https://github.com/rainbowkillah/crispy-enigma/issues/242",
+    "depends_on": ["docs/architecture.md"],
+    "decision_log": "docs/decision-log.md",
+    "open_questions": [
+      "Should BATTLE eventType split into BATTLE_START and BATTLE_UPDATE?",
+      "Should ROOM_USER (viewer count) be a first-class eventType or stay as RAW passthrough?"
+    ],
+    "validation_checklist": [
+      "Schema covers CHAT, GIFT, LIKE, FOLLOW, SHARE, JOIN, SUBSCRIBE, EMOTE, BATTLE",
+      "Schema covers lifecycle events CONNECTED, DISCONNECTED, ERROR",
+      "All placeholder tokens ({username} etc.) map to defined schema fields",
+      "eventId dedupe key strategy is documented",
+      "WebcastEvent to UnifiedEvent mapping table is present",
+      "schemaVersion field enables forward compatibility"
+    ]
+  },
+
+  "required": [
+    "schemaVersion",
+    "eventId",
+    "eventType",
+    "streamId",
+    "sessionId",
+    "timestamp",
+    "source",
+    "user"
+  ],
+
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1",
+      "description": "UnifiedEvent schema version. Increment when breaking changes are made."
+    },
+
+    "eventId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Dedupe key. SHA-256 hex digest of (streamId + ':' + seqNo + ':' + rawType). Idempotent: the same TikTok event always produces the same eventId."
+    },
+
+    "eventType": {
+      "type": "string",
+      "enum": [
+        "CHAT",
+        "GIFT",
+        "LIKE",
+        "FOLLOW",
+        "SHARE",
+        "JOIN",
+        "SUBSCRIBE",
+        "EMOTE",
+        "BATTLE",
+        "CONNECTED",
+        "DISCONNECTED",
+        "ERROR",
+        "RAW"
+      ],
+      "description": "Canonical event type. RAW is used for TikTok event types not yet mapped to a canonical type."
+    },
+
+    "streamId": {
+      "type": "string",
+      "description": "TikTok room ID (numeric string) for the live stream."
+    },
+
+    "sessionId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Internal session UUID. One session = one connection attempt (live) or one replay run. Multiple sessions may exist per streamId."
+    },
+
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of when the event occurred on TikTok's side (from proto payload when available, otherwise ingestion time)."
+    },
+
+    "ingestedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of when the event was received by the ingest service."
+    },
+
+    "source": {
+      "type": "string",
+      "enum": ["live", "replay"],
+      "description": "Whether this event came from a live stream connection or a replay of a stored session."
+    },
+
+    "seqNo": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Sequence number from TikTok's WebSocket frame. Used for ordering and dedupe key computation."
+    },
+
+    "user": {
+      "type": "object",
+      "description": "The TikTok user who triggered this event (sender of chat, giver of gift, etc.).",
+      "required": ["userId", "uniqueId"],
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "TikTok numeric user ID (stable identifier). Maps to placeholder {userId}."
+        },
+        "uniqueId": {
+          "type": "string",
+          "description": "TikTok @username (may change). Maps to placeholder {username}."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's display name / nickname. Maps to placeholder {displayName}."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the user's profile picture."
+        },
+        "followRole": {
+          "type": "integer",
+          "description": "0 = not following, 1 = following, 2 = friend."
+        },
+        "isModerator": {
+          "type": "boolean",
+          "description": "Whether the user is a moderator in this stream."
+        },
+        "isSubscriber": {
+          "type": "boolean",
+          "description": "Whether the user is a subscriber to the streamer."
+        },
+        "teamMemberLevel": {
+          "type": "integer",
+          "description": "Team member level (0 if not a team member)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "payload": {
+      "type": "object",
+      "description": "Event-type-specific data. The structure depends on eventType.",
+      "oneOf": [
+        { "$ref": "#/definitions/ChatPayload" },
+        { "$ref": "#/definitions/GiftPayload" },
+        { "$ref": "#/definitions/LikePayload" },
+        { "$ref": "#/definitions/FollowPayload" },
+        { "$ref": "#/definitions/SharePayload" },
+        { "$ref": "#/definitions/JoinPayload" },
+        { "$ref": "#/definitions/SubscribePayload" },
+        { "$ref": "#/definitions/EmotePayload" },
+        { "$ref": "#/definitions/BattlePayload" },
+        { "$ref": "#/definitions/ConnectedPayload" },
+        { "$ref": "#/definitions/DisconnectedPayload" },
+        { "$ref": "#/definitions/ErrorPayload" },
+        { "$ref": "#/definitions/RawPayload" }
+      ]
+    }
+  },
+
+  "definitions": {
+
+    "ChatPayload": {
+      "$id": "#/definitions/ChatPayload",
+      "type": "object",
+      "description": "Payload for CHAT events (WebcastChatMessage).",
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The chat message text. Maps to placeholder {message}."
+        },
+        "emotes": {
+          "type": "array",
+          "description": "Emotes embedded in the chat message.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "emoteId": { "type": "string" },
+              "emoteImageUrl": { "type": "string", "format": "uri" },
+              "placeholderIndex": { "type": "integer" }
+            }
+          }
+        },
+        "language": {
+          "type": "string",
+          "description": "Detected language code (e.g., 'en', 'zh')."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "GiftPayload": {
+      "$id": "#/definitions/GiftPayload",
+      "type": "object",
+      "description": "Payload for GIFT events (WebcastGiftMessage).",
+      "required": ["giftId", "giftName", "giftCount", "coins"],
+      "properties": {
+        "giftId": {
+          "type": "integer",
+          "description": "TikTok numeric gift ID."
+        },
+        "giftName": {
+          "type": "string",
+          "description": "Human-readable gift name (e.g., 'Rose'). Maps to placeholder {giftName}."
+        },
+        "giftCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of gifts sent in this event. Maps to placeholder {giftCount}."
+        },
+        "coins": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total coin value of this gift send (giftCount × unitPrice). Maps to placeholder {coins}."
+        },
+        "diamondCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Diamond value (streamer earnings). Typically coins / 2."
+        },
+        "streakActive": {
+          "type": "boolean",
+          "description": "Whether the user is currently in a gift streak (holding the send button)."
+        },
+        "streakEnd": {
+          "type": "boolean",
+          "description": "True on the final event of a gift streak."
+        },
+        "giftImageUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the gift's image asset."
+        },
+        "isGiftStreak": {
+          "type": "boolean",
+          "description": "Whether this event is part of a streak (streakActive || streakEnd)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "LikePayload": {
+      "$id": "#/definitions/LikePayload",
+      "type": "object",
+      "description": "Payload for LIKE events (WebcastLikeMessage).",
+      "required": ["likeCount", "totalLikeCount"],
+      "properties": {
+        "likeCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of likes sent in this batch. Maps to placeholder {likeCount}."
+        },
+        "totalLikeCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cumulative total likes for this stream. Maps to placeholder {totalLikeCount}."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "FollowPayload": {
+      "$id": "#/definitions/FollowPayload",
+      "type": "object",
+      "description": "Payload for FOLLOW events (WebcastSocialMessage, displayType=follow).",
+      "properties": {},
+      "additionalProperties": false
+    },
+
+    "SharePayload": {
+      "$id": "#/definitions/SharePayload",
+      "type": "object",
+      "description": "Payload for SHARE events (WebcastSocialMessage, displayType=share).",
+      "properties": {},
+      "additionalProperties": false
+    },
+
+    "JoinPayload": {
+      "$id": "#/definitions/JoinPayload",
+      "type": "object",
+      "description": "Payload for JOIN events (WebcastMemberMessage — user entered the room).",
+      "properties": {
+        "viewerCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Current viewer count at the time of the join event."
+        },
+        "actionId": {
+          "type": "integer",
+          "description": "TikTok action ID from WebcastMemberMessage."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "SubscribePayload": {
+      "$id": "#/definitions/SubscribePayload",
+      "type": "object",
+      "description": "Payload for SUBSCRIBE events (WebcastSocialMessage, displayType=subscribe).",
+      "properties": {
+        "subMonth": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Subscription month number (1 = first month)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "EmotePayload": {
+      "$id": "#/definitions/EmotePayload",
+      "type": "object",
+      "description": "Payload for EMOTE events (WebcastEmoteChatMessage).",
+      "required": ["emoteId"],
+      "properties": {
+        "emoteId": {
+          "type": "string",
+          "description": "TikTok emote ID."
+        },
+        "emoteImageUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the emote image asset."
+        },
+        "emoteType": {
+          "type": "string",
+          "description": "Emote type string from proto (e.g., 'EMOTETYPENORMAL')."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "BattlePayload": {
+      "$id": "#/definitions/BattlePayload",
+      "type": "object",
+      "description": "Payload for BATTLE events (WebcastLinkMicBattle, WebcastLinkMicArmies).",
+      "properties": {
+        "battleId": {
+          "type": "string",
+          "description": "TikTok battle/linkmic ID."
+        },
+        "battleStatus": {
+          "type": "string",
+          "enum": ["STARTED", "UPDATED", "ENDED"],
+          "description": "Current phase of the battle."
+        },
+        "participants": {
+          "type": "array",
+          "description": "Participants in the battle.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "userId": { "type": "string" },
+              "uniqueId": { "type": "string" },
+              "displayName": { "type": "string" },
+              "score": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ConnectedPayload": {
+      "$id": "#/definitions/ConnectedPayload",
+      "type": "object",
+      "description": "Payload for CONNECTED lifecycle events.",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "description": "TikTok room ID that was connected."
+        },
+        "isConnected": {
+          "type": "boolean",
+          "const": true
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["direct", "euler"],
+          "description": "Which ingest provider established the connection."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "DisconnectedPayload": {
+      "$id": "#/definitions/DisconnectedPayload",
+      "type": "object",
+      "description": "Payload for DISCONNECTED lifecycle events.",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "description": "WebSocket close code."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable disconnect reason."
+        },
+        "willReconnect": {
+          "type": "boolean",
+          "description": "Whether the ingest service will attempt to reconnect."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ErrorPayload": {
+      "$id": "#/definitions/ErrorPayload",
+      "type": "object",
+      "description": "Payload for ERROR lifecycle events.",
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "Error message."
+        },
+        "code": {
+          "type": "string",
+          "description": "Error code (e.g., 'USER_OFFLINE', 'INVALID_RESPONSE')."
+        },
+        "stack": {
+          "type": "string",
+          "description": "Stack trace (only included in development/debug mode)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "RawPayload": {
+      "$id": "#/definitions/RawPayload",
+      "type": "object",
+      "description": "Payload for RAW passthrough events (TikTok event types not yet mapped to a canonical type).",
+      "required": ["rawType"],
+      "properties": {
+        "rawType": {
+          "type": "string",
+          "description": "The original WebcastEvent or proto type name (e.g., 'WebcastHourlyRankMessage')."
+        },
+        "data": {
+          "type": "object",
+          "description": "The raw decoded event data as-is from tiktok-live-connector.",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+
+  "_placeholderTokens": {
+    "description": "Template placeholder tokens available in rule engine templates. Each token maps to a UnifiedEvent field.",
+    "tokens": {
+      "{userId}": "user.userId",
+      "{username}": "user.uniqueId",
+      "{displayName}": "user.displayName",
+      "{giftName}": "payload.giftName (GIFT events only)",
+      "{giftCount}": "payload.giftCount (GIFT events only)",
+      "{coins}": "payload.coins (GIFT events only)",
+      "{likeCount}": "payload.likeCount (LIKE events only)",
+      "{message}": "payload.message (CHAT events only)",
+      "{eventType}": "eventType",
+      "{timestamp}": "timestamp (ISO 8601)",
+      "{streamId}": "streamId",
+      "{sessionId}": "sessionId"
+    }
+  },
+
+  "_webcastEventMapping": {
+    "description": "Mapping from tiktok-live-connector WebcastEvent / proto type names to UnifiedEvent canonical eventType.",
+    "mapping": {
+      "WebcastChatMessage": "CHAT",
+      "WebcastGiftMessage": "GIFT",
+      "WebcastLikeMessage": "LIKE",
+      "WebcastMemberMessage": "JOIN",
+      "WebcastSocialMessage[follow]": "FOLLOW",
+      "WebcastSocialMessage[share]": "SHARE",
+      "WebcastSocialMessage[subscribe]": "SUBSCRIBE",
+      "WebcastEmoteChatMessage": "EMOTE",
+      "WebcastLinkMicBattle": "BATTLE",
+      "WebcastLinkMicArmies": "BATTLE",
+      "WebcastBarrageMessage": "BATTLE",
+      "ControlEvent.CONNECTED": "CONNECTED",
+      "ControlEvent.DISCONNECTED": "DISCONNECTED",
+      "ControlEvent.ERROR": "ERROR",
+      "WebcastRoomUserSeqMessage": "RAW",
+      "WebcastControlMessage": "RAW",
+      "WebcastHourlyRankMessage": "RAW",
+      "WebcastGoalUpdateMessage": "RAW",
+      "WebcastRoomMessage": "RAW",
+      "WebcastCaptionMessage": "RAW",
+      "WebcastImDeleteMessage": "RAW",
+      "WebcastInRoomBannerMessage": "RAW",
+      "WebcastRankUpdateMessage": "RAW",
+      "WebcastPollMessage": "RAW",
+      "WebcastRankTextMessage": "RAW",
+      "WebcastLinkMicBattlePunishFinish": "RAW",
+      "WebcastLinkmicBattleTaskMessage": "RAW",
+      "WebcastLinkMicFanTicketMethod": "RAW",
+      "WebcastLinkMicMethod": "RAW",
+      "WebcastUnauthorizedMemberMessage": "RAW",
+      "WebcastOecLiveShoppingMessage": "RAW",
+      "WebcastMsgDetectMessage": "RAW",
+      "WebcastLinkMessage": "RAW",
+      "RoomVerifyMessage": "RAW",
+      "WebcastLinkLayerMessage": "RAW",
+      "WebcastRoomPinMessage": "RAW",
+      "WebcastEnvelopeMessage": "RAW",
+      "WebcastQuestionNewMessage": "RAW",
+      "WebcastLiveIntroMessage": "RAW"
+    }
+  }
+}
