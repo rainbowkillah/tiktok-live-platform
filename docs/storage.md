@@ -20,12 +20,15 @@ See [decision-log.md](decision-log.md) for all storage choices, alternatives con
 ## Validation Checklist
 
 Reviewers should verify:
-- [ ] All 6 core tables are defined with column types, constraints, and indexes
-- [ ] `events` is append-only (no UPDATE/DELETE policy is explicit)
-- [ ] Replayability path is described end-to-end
-- [ ] Retention policy covers TTL, pruning mechanism, and privacy implications
-- [ ] Index strategy covers expected query patterns (live feed, history, per-user, per-type)
-- [ ] `rules` and `actions_log` tables support the rule engine contract
+- [x] All 6 core tables are defined with column types, constraints, and indexes
+- [x] `events` is append-only (no UPDATE/DELETE policy is explicit)
+- [x] Replayability path is described end-to-end
+- [x] Retention policy covers TTL, pruning mechanism, and privacy implications
+- [x] Index strategy covers expected query patterns (live feed, history, per-user, per-type)
+- [x] `rules` and `actions_log` tables support the rule engine contract
+
+**Codex review**: ✅ Approved with required changes (applied) — see [reviews.codex.md](reviews.codex.md)  
+**Copilot review**: ✅ Approved — replay, retention, and idempotent insert scenarios validated — see [reviews.copilot.md](reviews.copilot.md)
 
 ---
 
@@ -109,7 +112,7 @@ CREATE TABLE events (
     trigger_id     INTEGER     NOT NULL,           -- Numeric trigger mapping from UnifiedEvent
     schema_version TEXT        NOT NULL DEFAULT '1',
     user_id        TEXT,                           -- TikTok user ID (nullable: lifecycle events have no user)
-    raw_type       TEXT,                           -- Original proto/event type when event_type='RAW'
+    raw_type       TEXT,                           -- Original WebcastEvent/proto type (e.g., 'WebcastGiftMessage'); always populated; indexed for RAW filtering
     event_data     JSONB       NOT NULL,           -- Full UnifiedEvent JSON
     source         event_source NOT NULL DEFAULT 'live',
     seq_no         BIGINT      NOT NULL DEFAULT 0,
@@ -138,11 +141,11 @@ CREATE INDEX idx_events_data_gin           ON events USING GIN (event_data);
 - A `RULE` or trigger that blocks UPDATE/DELETE can be added in Phase 4 hardening
 
 **Columns:**
-- `event_id` — the SHA-256 dedupe key from UnifiedEvent (computed by normalizer). Unique constraint enables idempotent inserts via `ON CONFLICT (event_id) DO NOTHING`
+- `event_id` — SHA-256 of `(streamId + ':' + sessionId + ':' + seqNo + ':' + rawType)` as specified in `unified-event.v1.schema.json`. The `sessionId` component ensures replay events (new session) receive distinct `event_id` values, so replay rows are always inserted as new records. Idempotent re-delivery within the same session is handled by `ON CONFLICT (event_id) DO NOTHING`.
 - `event_data` — the full UnifiedEvent JSON blob. This is the source of truth; other columns are denormalized for query performance
-- `seq_no` — TikTok sequence number from the WebSocket frame
+- `seq_no` — TikTok sequence number from the WebSocket frame; used as an ordering key for replay
 - `trigger_id` — numeric trigger mapping aligned to `UnifiedEvent.triggerId` for fast rule filtering and dispatch analytics
-- `raw_type` — the unmapped proto/event type (populated when `event_type='RAW'`) for fast diagnostics and analytics
+- `raw_type` — the original WebcastEvent/proto type name (e.g., `WebcastGiftMessage`). Populated for all events; required and indexed for `event_type='RAW'` filtering without JSONB traversal
 
 ---
 
