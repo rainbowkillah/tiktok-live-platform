@@ -3,7 +3,7 @@
 **Owner Agent**: Claude (Program Lead & Systems Architect)
 **Depends on**: [docs/architecture.md](architecture.md), [docs/contracts/unified-event.v1.schema.json](contracts/unified-event.v1.schema.json)
 **GitHub Issue**: [#243](https://github.com/rainbowkillah/crispy-enigma/issues/243)
-**Status**: Draft — Pending peer review
+**Status**: Approved with required changes (applied)
 
 ---
 
@@ -28,7 +28,8 @@ Reviewers should verify:
 - [x] `rules` and `actions_log` tables support the rule engine contract
 
 **Codex review**: ✅ Approved with required changes (applied) — see [reviews.codex.md](reviews.codex.md)  
-**Copilot review**: ✅ Approved — replay, retention, and idempotent insert scenarios validated — see [reviews.copilot.md](reviews.copilot.md)
+**Copilot review**: ✅ Approved — replay, retention, and idempotent insert scenarios validated — see [reviews.copilot.md](reviews.copilot.md)  
+**Gemini review**: ✅ Approved — Privacy and UX requirements satisfied — see [reviews.gemini.md](reviews.gemini.md)
 
 ---
 
@@ -287,9 +288,9 @@ Normalizer → Storage Writer → API → UI
 |-------|------------------|-----------------|
 | `events` | 90 days | `EVENT_RETENTION_DAYS` env var |
 | `actions_log` | 90 days | `ACTIONS_LOG_RETENTION_DAYS` env var |
-| `streams` | Indefinite | Manual admin only |
-| `sessions` | Indefinite | Manual admin only |
-| `users` | Indefinite | Manual admin only (GDPR erasure on request) |
+| `streams` | 1 year | `STREAM_RETENTION_DAYS` env var |
+| `sessions` | 1 year | `SESSION_RETENTION_DAYS` env var |
+| `users` | 1 year (inactive) | `USER_RETENTION_DAYS` env var |
 | `rules` | Indefinite | Manual admin only |
 
 ### 4.1 Pruning Job
@@ -307,16 +308,15 @@ WHERE timestamp < NOW() - INTERVAL '90 days'
 DELETE FROM events
 WHERE archived_at < NOW() - INTERVAL '30 days';
 
--- Similarly for actions_log
-UPDATE actions_log
-SET ...
+-- Similarly for actions_log, streams, sessions, and users
+-- UPDATE actions_log SET ...
 ```
 
 ### 4.2 Privacy
 
-- `users.avatar_url` and `users.display_name` are PII. After the retention period, these fields are nulled (pseudonymization) via the pruning job.
-- Hard deletion of a user (GDPR right to erasure) sets `user_id` to `NULL` in `events` and removes the `users` row. Event data (`event_data` JSONB) must also be scrubbed of user fields.
-- See [docs/threat-model.md](threat-model.md) (Gemini-owned) for the full data retention and privacy policy.
+- `users.avatar_url` and `users.display_name` are PII. After the retention period, these fields are nulled. Additionally, `tiktok_user_id` and `unique_id` are replaced with a cryptographic hash (strong pseudonymization) via the pruning job.
+- Hard deletion of a user (GDPR right to erasure) is fully automated via the `scripts/gdpr-erasure.ts` script. This script scrubs user fields from the `events` table (including the `event_data` JSONB) and removes the `users` row.
+- See [docs/privacy-policy.md](privacy-policy.md) (Gemini-owned) for the full data retention and privacy policy.
 
 ---
 

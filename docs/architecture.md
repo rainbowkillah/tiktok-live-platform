@@ -3,7 +3,7 @@
 **Owner Agent**: Claude (Program Lead & Systems Architect)
 **Depends on**: None (root document)
 **GitHub Issue**: [#241](https://github.com/rainbowkillah/crispy-enigma/issues/241)
-**Status**: Draft — Pending peer review
+**Status**: Approved with required changes (applied)
 
 ---
 
@@ -165,22 +165,23 @@ The ingestion layer wraps [`tiktok-live-connector`](https://www.npmjs.com/packag
 
 **Responsibilities:**
 - Exposes REST API for historical queries (events, sessions, streams, users, rules)
-- Exposes SSE endpoint `/streams/:streamId/events` for live event feed
+- Exposes SSE endpoint `/streams/:streamId/events` for live event feed (requires authentication and connection limits)
 - Exposes WebSocket endpoint for bidirectional UI communication
-- Provides session replay trigger endpoint (`POST /sessions/:id/replay`)
+- Provides session replay trigger endpoint (`POST /sessions/:id/replay`) (requires authentication)
 - Serves static Web UI assets (or delegates to separate Nginx container)
+- Enforces API rate limits on all endpoints to mitigate DoS (Denial of Service) attacks
 
 **Key endpoints (planned):**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/streams/:id/events` | SSE live feed |
+| `GET` | `/streams/:id/events` | SSE live feed (Authenticated) |
 | `GET` | `/sessions/:id/events` | Historical event query |
-| `POST` | `/sessions/:id/replay` | Trigger replay |
+| `POST` | `/sessions/:id/replay` | Trigger replay (Authenticated) |
 | `GET` | `/rules` | List rules |
-| `POST` | `/rules` | Create rule |
-| `PUT` | `/rules/:id` | Update rule |
-| `DELETE` | `/rules/:id` | Delete rule |
+| `POST` | `/rules` | Create rule (Authenticated) |
+| `PUT` | `/rules/:id` | Update rule (Authenticated) |
+| `DELETE` | `/rules/:id` | Delete rule (Authenticated) |
 | `GET` | `/health` | Health check |
 
 ---
@@ -367,6 +368,7 @@ The normalizer uses this table to map raw TikTok event names to canonical Unifie
 | R-08 | Euler API outage | Low | High | Fall back to `direct` provider; alert on DLQ growth |
 | R-09 | Rule engine executes unauthorized actions | Low | High | Allowlist action types; sandbox webhook destinations; require auth to create rules |
 | R-10 | GDPR / privacy: user PII stored indefinitely | Medium | Medium | 90-day retention; user deletion endpoint; pseudonymize after retention period |
+| R-11 | API endpoint abuse exhausts resources (DoS) | Medium | High | Enforce API rate limits; require auth for state-mutating endpoints and SSE |
 
 ---
 

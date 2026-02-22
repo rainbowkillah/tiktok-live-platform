@@ -3,7 +3,7 @@
 **Owner Agent**: Gemini (AI Agent)
 **Depends on**: [docs/architecture.md](architecture.md), [docs/contracts/unified-event.v1.schema.json](contracts/unified-event.v1.schema.json), [docs/storage.md](storage.md)
 **GitHub Issue**: [#4](https://github.com/rainbowkillah/tiktok-live-platform/issues/4)
-**Status**: Draft — Pending peer review
+**Status**: Approved
 
 ---
 
@@ -20,7 +20,7 @@
 ## Open Questions
 
 1. **Authentication/Authorization model**: What auth mechanism will be used for streamers, moderators, and API clients? Options include session-cookie auth, JWT, or OAuth 2.0. This must be resolved before the API service is production-hardened.
-2. **Privacy and GDPR compliance**: How will user deletion requests (right to erasure) be handled end-to-end, including scrubbing `event_data` JSONB blobs? The runbook for GDPR erasure operations needs to be drafted.
+2. **Privacy and GDPR compliance**: **[RESOLVED]** A comprehensive privacy policy has been defined in [docs/privacy-policy.md](privacy-policy.md), establishing strict 1-year data retention for PII tables, automated GDPR erasure scripts, and strong pseudonymization (cryptographic hashing) rules.
 3. **Third-party attack surface**: The `tiktok-live-connector` npm package and the Euler Stream API introduce dependency-level attack surfaces. A process for vetting and pinning these dependencies is needed.
 4. **Real-time abuse monitoring**: What alerting and automated response mechanisms will be in place for detecting and acting on malicious rule creation, webhook abuse, or DLQ flooding in real time?
 5. **Rule engine sandboxing**: JSON Logic conditions reduce code injection risk, but the full sandboxing strategy for `webhook` action targets needs definition (allowlist vs. blocklist of domains).
@@ -220,17 +220,7 @@ All secrets are classified as radioactive and must be handled as follows:
 
 ## 5. Privacy and Data Retention
 
-This section supplements [docs/storage.md §4](storage.md#4-data-retention-policy).
-
-| Personal Data | Location | Retention | Mitigation |
-|--------------|----------|-----------|-----------|
-| TikTok `userId` | `events.user_id`, `event_data` JSONB, `users` table | 90 days (events), indefinite (users) | Pseudonymize `display_name` and `avatar_url` after retention window; hard-delete available via GDPR runbook |
-| `uniqueId` (@username) | `events.event_data`, `users` table | Same as above | Same as above |
-| `displayName` | `users.display_name`, `event_data` JSONB | 90 days | Null after retention window |
-| `avatarUrl` | `users.avatar_url`, `event_data` JSONB | 90 days | Null after retention window; do not cache externally |
-| Chat message content | `event_data.payload.message` | 90 days | Hard-delete for GDPR erasure requests; no full-text indexing of message content |
-
-**GDPR erasure**: A dedicated admin operation must scrub all occurrences of a user's PII from `users`, `events.user_id`, and the `event_data` JSONB column. This operation must be logged to a separate `gdpr_erasures` audit table and is the only permitted hard-delete path.
+This section has been consolidated. Please see [docs/privacy-policy.md](privacy-policy.md) for the full data retention and privacy policy, including details on pseudonymization, PII scrubbing, and automated GDPR right-to-erasure processes.
 
 ---
 
