@@ -27,6 +27,7 @@ Reviewers should verify:
 - [ ] Replayability path is explicitly described
 - [ ] Redis Streams contracts (`ttlc:raw`, `ttlc:events`, `ttlc:dlq`) are field-level explicit
 - [ ] Deployment topology (Docker Compose first) is enforced
+- [ ] Testability section is present and integration test hooks are documented (§9)
 
 ---
 
@@ -337,7 +338,7 @@ The normalizer uses this table to map raw TikTok event names to canonical Unifie
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INGEST_PROVIDER` | `direct` | `direct` or `euler` |
+| `INGEST_PROVIDER` | `direct` | `direct`, `euler`, or `mock` (see §9.2.2) |
 | `TIKTOK_UNIQUE_ID` | — | TikTok username to connect to |
 | `EULER_API_KEY` | — | Euler Stream API key (required if `INGEST_PROVIDER=euler`) |
 | `SESSION_ID` | — | TikTok session cookie (for authenticated chat send) — treat as secret |
@@ -376,3 +377,141 @@ The normalizer uses this table to map raw TikTok event names to canonical Unifie
 3. **Replayability**: Every session must be replayable via `--replay-session <id>` or the API.
 4. **Observability**: Structured JSON logging and basic Redis/Postgres metrics by end of Phase 2.
 5. **No lone-wolf merges**: All deliverables require peer review before merge.
+
+---
+
+## 9. Testability & Integration Test Hooks
+
+### 9.1 Testing Strategy by Layer
+
+| Layer | Test Type | Isolation Mechanism |
+|-------|-----------|---------------------|
+| Normalizer | Unit | In-process: pass raw frame JSON → assert `UnifiedEvent` output shape and `eventId` determinism |
+| Storage Writer | Unit + Integration | Dockerized Postgres (`postgres:16-alpine`); upsert and `ON CONFLICT DO NOTHING` verified per-run |
+| Rule Engine | Unit | In-process: pass `UnifiedEvent`, assert rendered template and action dispatch |
+| API (REST + SSE) | Integration | Fastify `inject()` / Supertest; test Postgres + test Redis instance; assert SSE event sequence |
+| Full pipeline | E2E | `docker-compose.test.yml` — all services; seed fixture events via `--replay-session` |
+
+---
+
+### 9.2 Built-In Integration Test Hooks
+
+The following architectural features are first-class integration test hooks. They require **no code changes** to activate in a test environment.
+
+#### 9.2.1 Session Replay (`--replay-session <id>` / `POST /sessions/:id/replay`)
+
+The replay subsystem (§3.1, storage.md §3) is the primary E2E integration test hook.
+
+**How to use in tests:**
+1. Record a set of real (or hand-crafted) raw events into Postgres during a controlled test run.
+2. In CI, trigger `POST /sessions/:id/replay` pointing at the recorded session.
+3. Assert that the downstream `ttlc:events` stream receives the expected `UnifiedEvent` sequence and that the storage writer persists deduplicated rows.
+
+**Why it works:** Replay events flow through the full normalizer → storage-writer → API pipeline. The `source='replay'` field and a new `sessionId` keep replay traffic distinguishable from live data, so assertions never accidentally match a live event.
+
+#### 9.2.2 Mock Ingest Provider (`INGEST_PROVIDER=mock`)
+
+Setting `INGEST_PROVIDER=mock` instructs the ingest service to read from a local fixture file (`test/fixtures/events.ndjson`) instead of connecting to TikTok. Each line in the file is a raw frame envelope conforming to the `ttlc:raw` contract (§3.8).
+
+**Fixture file format (one JSON object per line):**
+```json
+{"schemaVersion":"raw.v1","streamId":"12345","sessionId":"<uuid>","source":"live","type":"WebcastChatMessage","seqNo":1,"timestamp":"2026-02-22T10:00:00Z","ingestedAt":"2026-02-22T10:00:00Z","data":{"comment":"Hello world","user":{"userId":"99","uniqueId":"testuser"}}}
+```
+
+This allows the entire pipeline to be exercised in CI without a TikTok account, API key, or network access.
+
+#### 9.2.3 Source Tagging (`source: 'live' | 'replay'`)
+
+Every event envelope on `ttlc:raw` and every `UnifiedEvent` on `ttlc:events` carries a `source` field (schema §3.8 / unified-event.v1 spec). Integration tests can:
+- Filter assertions to `source='replay'` to ignore any incidental live events.
+- Verify the storage writer correctly sets `events.source` in Postgres.
+- Assert that the rule engine respects `meta.skipReplay` on rules during replay runs.
+
+#### 9.2.4 Dead-Letter Queue (`ttlc:dlq`)
+
+The normalizer publishes `PARSE_ERROR` messages to `ttlc:dlq` when normalization fails. Integration tests can:
+- Inject a malformed raw frame and assert a DLQ message appears within a timeout.
+- Verify DLQ messages contain `rawType`, `sessionId`, `error`, and the original `data` blob.
+- Assert that the pipeline does **not** stall — subsequent valid frames continue processing after a DLQ write.
+
+#### 9.2.5 Health Endpoint (`GET /health`)
+
+The API exposes a `/health` endpoint that returns HTTP 200 with a JSON body when all service dependencies (Redis, Postgres) are reachable. CI startup scripts should poll `/health` before running integration tests to avoid flaky failures due to container startup order.
+
+Expected response shape:
+```json
+{ "status": "ok", "redis": "ok", "postgres": "ok", "uptime": 42 }
+```
+
+If any dependency is unavailable, the response is HTTP 503 with the failing component identified, enabling targeted failure diagnosis.
+
+---
+
+### 9.3 Fixture Event Files
+
+Fixture events are stored in `test/fixtures/` and committed to the repository. Each file is a newline-delimited JSON (`.ndjson`) file containing raw frame envelopes (for `INGEST_PROVIDER=mock`) or full `UnifiedEvent` JSON objects (for unit tests of downstream services).
+
+| File | Purpose |
+|------|---------|
+| `test/fixtures/raw-frames.ndjson` | Raw frame envelopes for `INGEST_PROVIDER=mock` (covers all canonical event types) |
+| `test/fixtures/unified-events.ndjson` | Pre-normalized `UnifiedEvent` objects for storage-writer and rule engine unit tests |
+| `test/fixtures/dlq-frames.ndjson` | Intentionally malformed frames for DLQ path tests |
+
+Fixture files must contain at least one event of each canonical `eventType` (CHAT, GIFT, LIKE, FOLLOW, SHARE, JOIN, SUBSCRIBE, EMOTE, BATTLE, CONNECTED, DISCONNECTED, ERROR) and at least one `RAW` passthrough event.
+
+---
+
+### 9.4 Contract Tests (UnifiedEvent Schema)
+
+`docs/contracts/unified-event.v1.schema.json` is the normative contract for all events published to `ttlc:events`. Contract tests must:
+
+1. Load every `UnifiedEvent` in `test/fixtures/unified-events.ndjson`.
+2. Validate each against `unified-event.v1.schema.json` using a JSON Schema validator (e.g., `ajv`).
+3. Assert zero validation errors.
+
+This gate must pass in CI before the normalizer or storage-writer builds are promoted. It ensures proto drift (R-05) is caught immediately when fixture events are updated.
+
+---
+
+### 9.5 Consumer Group Isolation in Test Environments
+
+Redis consumer groups (`normalizer`, `storage`, and any API consumers) are named with a configurable prefix via `REDIS_CONSUMER_GROUP_PREFIX` env var (default: empty). In test environments, set a unique prefix per test run (e.g., `test-<uuid>-`) to prevent test consumers from interfering with each other or with a shared Redis instance.
+
+Stream keys follow the same pattern: `ttlc:raw` → `<prefix>ttlc:raw`, `ttlc:events` → `<prefix>ttlc:events`.
+
+---
+
+### 9.6 Docker Compose Test Configuration
+
+A `docker-compose.test.yml` override file provides a complete ephemeral test environment:
+
+```yaml
+# docker-compose.test.yml (override)
+services:
+  ingest:
+    environment:
+      INGEST_PROVIDER: mock              # No real TikTok connection
+  postgres:
+    tmpfs: /var/lib/postgresql/data      # Ephemeral; no disk writes
+  redis:
+    command: ["redis-server", "--save", ""]  # Disable persistence
+```
+
+Run the full integration suite with:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.test.yml up --abort-on-container-exit
+```
+
+---
+
+### 9.7 CI Pipeline (Phase 2)
+
+The Phase 2 CI pipeline (GitHub Actions) runs the following jobs in order:
+
+| Step | Command | Gate |
+|------|---------|------|
+| Schema contract | `npx ajv validate -s docs/contracts/unified-event.v1.schema.json -d test/fixtures/unified-events.ndjson` | All fixtures valid |
+| Unit tests | `npm test` | All unit tests pass |
+| Integration tests | `docker compose ... up --abort-on-container-exit` | All containers exit 0 |
+| DLQ smoke test | Assert `ttlc:dlq` entry after injecting `dlq-frames.ndjson` | DLQ message received within 5 s |
+| Health check | `curl -f http://localhost:3000/health` | HTTP 200 |
