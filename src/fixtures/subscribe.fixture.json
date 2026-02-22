@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1",
+  "eventId": "09f7c8d0e1b2345678901234567890123456012789012345012789012345678a",
+  "eventType": "SUBSCRIBE",
+  "triggerId": 7,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440007",
+  "timestamp": "2024-06-01T12:06:00.000Z",
+  "ingestedAt": "2024-06-01T12:06:00.050Z",
+  "source": "live",
+  "seqNo": 7,
+  "user": {
+    "userId": "1007",
+    "uniqueId": "subscriber_one",
+    "displayName": "Sub One",
+    "followRole": 1,
+    "isModerator": false,
+    "isSubscriber": true
+  },
+  "payload": {
+    "subMonth": 3
+  }
+}

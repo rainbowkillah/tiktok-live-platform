@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "eventId": "c5f3c4d6e7b8901234567890123456789012cdef3456789012cdef3456789012",
+  "eventType": "LIKE",
+  "triggerId": 3,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440003",
+  "timestamp": "2024-06-01T12:02:00.000Z",
+  "ingestedAt": "2024-06-01T12:02:00.050Z",
+  "source": "live",
+  "seqNo": 3,
+  "user": {
+    "userId": "1003",
+    "uniqueId": "likefan42",
+    "displayName": "Like Fan",
+    "followRole": 1,
+    "isModerator": false,
+    "isSubscriber": false
+  },
+  "payload": {
+    "likeCount": 15,
+    "totalLikeCount": 4823
+  }
+}

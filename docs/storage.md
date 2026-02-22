@@ -3,7 +3,7 @@
 **Owner Agent**: Claude (Program Lead & Systems Architect)
 **Depends on**: [docs/architecture.md](architecture.md), [docs/contracts/unified-event.v1.schema.json](contracts/unified-event.v1.schema.json)
 **GitHub Issue**: [#243](https://github.com/rainbowkillah/crispy-enigma/issues/243)
-**Status**: Draft — Pending peer review
+**Status**: Approved with required changes (applied)
 
 ---
 
@@ -20,12 +20,16 @@ See [decision-log.md](decision-log.md) for all storage choices, alternatives con
 ## Validation Checklist
 
 Reviewers should verify:
-- [ ] All 6 core tables are defined with column types, constraints, and indexes
-- [ ] `events` is append-only (no UPDATE/DELETE policy is explicit)
-- [ ] Replayability path is described end-to-end
-- [ ] Retention policy covers TTL, pruning mechanism, and privacy implications
-- [ ] Index strategy covers expected query patterns (live feed, history, per-user, per-type)
-- [ ] `rules` and `actions_log` tables support the rule engine contract
+- [x] All 6 core tables are defined with column types, constraints, and indexes
+- [x] `events` is append-only (no UPDATE/DELETE policy is explicit)
+- [x] Replayability path is described end-to-end
+- [x] Retention policy covers TTL, pruning mechanism, and privacy implications
+- [x] Index strategy covers expected query patterns (live feed, history, per-user, per-type)
+- [x] `rules` and `actions_log` tables support the rule engine contract
+
+**Codex review**: ✅ Approved with required changes (applied) — see [reviews.codex.md](reviews.codex.md)  
+**Copilot review**: ✅ Approved — replay, retention, and idempotent insert scenarios validated — see [reviews.copilot.md](reviews.copilot.md)  
+**Gemini review**: ✅ Approved — Privacy and UX requirements satisfied — see [reviews.gemini.md](reviews.gemini.md)
 
 ---
 
@@ -106,8 +110,10 @@ CREATE TABLE events (
     session_id     UUID        NOT NULL REFERENCES sessions(id),
     stream_id      TEXT        NOT NULL REFERENCES streams(id),
     event_type     TEXT        NOT NULL,           -- CHAT, GIFT, LIKE, etc.
+    trigger_id     INTEGER     NOT NULL,           -- Numeric trigger mapping from UnifiedEvent
     schema_version TEXT        NOT NULL DEFAULT '1',
     user_id        TEXT,                           -- TikTok user ID (nullable: lifecycle events have no user)
+    raw_type       TEXT,                           -- Original WebcastEvent/proto type (e.g., 'WebcastGiftMessage'); always populated; indexed for RAW filtering
     event_data     JSONB       NOT NULL,           -- Full UnifiedEvent JSON
     source         event_source NOT NULL DEFAULT 'live',
     seq_no         BIGINT      NOT NULL DEFAULT 0,
@@ -120,7 +126,9 @@ CREATE TABLE events (
 CREATE INDEX idx_events_session_timestamp  ON events(session_id, timestamp DESC);
 CREATE INDEX idx_events_stream_timestamp   ON events(stream_id, timestamp DESC);
 CREATE INDEX idx_events_type_timestamp     ON events(event_type, timestamp DESC);
+CREATE INDEX idx_events_trigger_timestamp  ON events(trigger_id, timestamp DESC);
 CREATE INDEX idx_events_user_timestamp     ON events(user_id, timestamp DESC) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_events_raw_type_timestamp ON events(raw_type, timestamp DESC) WHERE raw_type IS NOT NULL;
 CREATE INDEX idx_events_archived           ON events(archived_at) WHERE archived_at IS NOT NULL;
 
 -- JSONB indexes for common filter patterns
@@ -134,9 +142,11 @@ CREATE INDEX idx_events_data_gin           ON events USING GIN (event_data);
 - A `RULE` or trigger that blocks UPDATE/DELETE can be added in Phase 4 hardening
 
 **Columns:**
-- `event_id` — the SHA-256 dedupe key from UnifiedEvent (computed by normalizer). Unique constraint enables idempotent inserts via `ON CONFLICT (event_id) DO NOTHING`
+- `event_id` — SHA-256 of `(streamId + ':' + sessionId + ':' + seqNo + ':' + rawType)` as specified in `unified-event.v1.schema.json`. The `sessionId` component ensures replay events (new session) receive distinct `event_id` values, so replay rows are always inserted as new records. Idempotent re-delivery within the same session is handled by `ON CONFLICT (event_id) DO NOTHING`.
 - `event_data` — the full UnifiedEvent JSON blob. This is the source of truth; other columns are denormalized for query performance
-- `seq_no` — TikTok sequence number from the WebSocket frame
+- `seq_no` — TikTok sequence number from the WebSocket frame; used as an ordering key for replay
+- `trigger_id` — numeric trigger mapping aligned to `UnifiedEvent.triggerId` for fast rule filtering and dispatch analytics
+- `raw_type` — the original WebcastEvent/proto type name (e.g., `WebcastGiftMessage`). Populated for all events; required and indexed for `event_type='RAW'` filtering without JSONB traversal
 
 ---
 
@@ -218,6 +228,8 @@ CREATE TABLE actions_log (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     rule_id           UUID        NOT NULL REFERENCES rules(id),
     event_id          TEXT        NOT NULL,           -- References events.event_id
+    stream_id         TEXT        REFERENCES streams(id), -- denormalized for per-stream audits
+    session_id        UUID        REFERENCES sessions(id), -- denormalized for replay/session audits
     rendered_template TEXT,                           -- The template after placeholder substitution
     executed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status            action_status NOT NULL,
@@ -228,6 +240,8 @@ CREATE TABLE actions_log (
 
 CREATE INDEX idx_actions_log_rule_id    ON actions_log(rule_id, executed_at DESC);
 CREATE INDEX idx_actions_log_event_id   ON actions_log(event_id);
+CREATE INDEX idx_actions_log_stream_id  ON actions_log(stream_id, executed_at DESC);
+CREATE INDEX idx_actions_log_session_id ON actions_log(session_id, executed_at DESC);
 CREATE INDEX idx_actions_log_status     ON actions_log(status, executed_at DESC);
 ```
 
@@ -274,9 +288,9 @@ Normalizer → Storage Writer → API → UI
 |-------|------------------|-----------------|
 | `events` | 90 days | `EVENT_RETENTION_DAYS` env var |
 | `actions_log` | 90 days | `ACTIONS_LOG_RETENTION_DAYS` env var |
-| `streams` | Indefinite | Manual admin only |
-| `sessions` | Indefinite | Manual admin only |
-| `users` | Indefinite | Manual admin only (GDPR erasure on request) |
+| `streams` | 1 year | `STREAM_RETENTION_DAYS` env var |
+| `sessions` | 1 year | `SESSION_RETENTION_DAYS` env var |
+| `users` | 1 year (inactive) | `USER_RETENTION_DAYS` env var |
 | `rules` | Indefinite | Manual admin only |
 
 ### 4.1 Pruning Job
@@ -294,16 +308,15 @@ WHERE timestamp < NOW() - INTERVAL '90 days'
 DELETE FROM events
 WHERE archived_at < NOW() - INTERVAL '30 days';
 
--- Similarly for actions_log
-UPDATE actions_log
-SET ...
+-- Similarly for actions_log, streams, sessions, and users
+-- UPDATE actions_log SET ...
 ```
 
 ### 4.2 Privacy
 
-- `users.avatar_url` and `users.display_name` are PII. After the retention period, these fields are nulled (pseudonymization) via the pruning job.
-- Hard deletion of a user (GDPR right to erasure) sets `user_id` to `NULL` in `events` and removes the `users` row. Event data (`event_data` JSONB) must also be scrubbed of user fields.
-- See [docs/threat-model.md](threat-model.md) (Gemini-owned) for the full data retention and privacy policy.
+- `users.avatar_url` and `users.display_name` are PII. After the retention period, these fields are nulled. Additionally, `tiktok_user_id` and `unique_id` are replaced with a cryptographic hash (strong pseudonymization) via the pruning job.
+- Hard deletion of a user (GDPR right to erasure) is fully automated via the `scripts/gdpr-erasure.ts` script. This script scrubs user fields from the `events` table (including the `event_data` JSONB) and removes the `users` row.
+- See [docs/privacy-policy.md](privacy-policy.md) (Gemini-owned) for the full data retention and privacy policy.
 
 ---
 

@@ -29,6 +29,7 @@
     "schemaVersion",
     "eventId",
     "eventType",
+    "triggerId",
     "streamId",
     "sessionId",
     "timestamp",
@@ -46,7 +47,7 @@
     "eventId": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
-      "description": "Dedupe key. SHA-256 hex digest of (streamId + ':' + seqNo + ':' + rawType). Idempotent: the same TikTok event always produces the same eventId."
+      "description": "Dedupe key. SHA-256 hex digest of (streamId + ':' + sessionId + ':' + seqNo + ':' + rawType). Idempotent: the same TikTok event always produces the same eventId."
     },
 
     "eventType": {
@@ -67,6 +68,12 @@
         "RAW"
       ],
       "description": "Canonical event type. RAW is used for TikTok event types not yet mapped to a canonical type."
+    },
+
+    "triggerId": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Numeric trigger ID used by the rule engine dispatch path. Stable mapping is defined in _triggerIdMapping."
     },
 
     "streamId": {
@@ -272,16 +279,30 @@
     "FollowPayload": {
       "$id": "#/definitions/FollowPayload",
       "type": "object",
-      "description": "Payload for FOLLOW events (WebcastSocialMessage, displayType=follow).",
-      "properties": {},
+      "description": "Payload for FOLLOW events (WebcastSocialMessage, displayType=pm_mt_msg_viewer_follow).",
+      "required": ["displayType"],
+      "properties": {
+        "displayType": {
+          "type": "string",
+          "const": "pm_mt_msg_viewer_follow",
+          "description": "Social sub-type discriminator sourced from WebcastSocialMessage.displayType."
+        }
+      },
       "additionalProperties": false
     },
 
     "SharePayload": {
       "$id": "#/definitions/SharePayload",
       "type": "object",
-      "description": "Payload for SHARE events (WebcastSocialMessage, displayType=share).",
-      "properties": {},
+      "description": "Payload for SHARE events (WebcastSocialMessage, displayType=pm_mt_msg_viewer_share).",
+      "required": ["displayType"],
+      "properties": {
+        "displayType": {
+          "type": "string",
+          "const": "pm_mt_msg_viewer_share",
+          "description": "Social sub-type discriminator sourced from WebcastSocialMessage.displayType."
+        }
+      },
       "additionalProperties": false
     },
 
@@ -466,11 +487,48 @@
       "{giftCount}": "payload.giftCount (GIFT events only)",
       "{coins}": "payload.coins (GIFT events only)",
       "{likeCount}": "payload.likeCount (LIKE events only)",
+      "{totalLikeCount}": "payload.totalLikeCount (LIKE events only)",
       "{message}": "payload.message (CHAT events only)",
       "{eventType}": "eventType",
       "{timestamp}": "timestamp (ISO 8601)",
       "{streamId}": "streamId",
       "{sessionId}": "sessionId"
+    }
+  },
+
+  "_triggerIdMapping": {
+    "description": "Stable numeric IDs for event dispatch and rule-engine matching.",
+    "mapping": {
+      "CHAT": 1,
+      "GIFT": 2,
+      "LIKE": 3,
+      "FOLLOW": 4,
+      "SHARE": 5,
+      "JOIN": 6,
+      "SUBSCRIBE": 7,
+      "EMOTE": 8,
+      "BATTLE": 9,
+      "CONNECTED": 10,
+      "DISCONNECTED": 11,
+      "ERROR": 12,
+      "RAW": 13
+    }
+  },
+
+  "_protoFieldCompatibility": {
+    "description": "Minimum source fields expected by the normalizer; fallback behavior is mandatory when providers omit fields.",
+    "requiredFromProvider": {
+      "streamId": "roomId || room_id",
+      "sessionId": "generated UUID per connect/reconnect/replay",
+      "type": "event/proto type name",
+      "timestamp": "createTime || timestamp || ingestedAt",
+      "seqNo": "seqId || logId || 0"
+    },
+    "normalizerFallbacks": {
+      "eventId": "sha256(streamId + ':' + sessionId + ':' + seqNo + ':' + rawType)",
+      "user.userId": "'0' for lifecycle events with no user context",
+      "user.uniqueId": "'system' for lifecycle events with no user context",
+      "payload.rawType": "required when eventType='RAW'"
     }
   },
 

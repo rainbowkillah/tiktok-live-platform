@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1",
+  "eventId": "f8f6c7d9e0b1234567890123456789012345f016789012345f01678901234567",
+  "eventType": "JOIN",
+  "triggerId": 6,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440006",
+  "timestamp": "2024-06-01T12:05:00.000Z",
+  "ingestedAt": "2024-06-01T12:05:00.050Z",
+  "source": "live",
+  "seqNo": 6,
+  "user": {
+    "userId": "1006",
+    "uniqueId": "viewer_joined",
+    "displayName": "Viewer Joined",
+    "followRole": 0,
+    "isModerator": false,
+    "isSubscriber": false
+  },
+  "payload": {
+    "viewerCount": 342,
+    "actionId": 2
+  }
+}

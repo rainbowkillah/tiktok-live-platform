@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1",
+  "eventId": "6f23a4c6d7a8901234567890123456789012678345678901678345678901234a",
+  "eventType": "RAW",
+  "triggerId": 13,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440013",
+  "timestamp": "2024-06-01T12:10:00.000Z",
+  "ingestedAt": "2024-06-01T12:10:00.050Z",
+  "source": "live",
+  "seqNo": 10,
+  "user": {
+    "userId": "0",
+    "uniqueId": "system"
+  },
+  "payload": {
+    "rawType": "WebcastHourlyRankMessage",
+    "data": {
+      "rankType": 1,
+      "rankList": [
+        { "userId": "1001", "rank": 1, "score": 9999 },
+        { "userId": "1002", "rank": 2, "score": 8888 }
+      ]
+    }
+  }
+}
