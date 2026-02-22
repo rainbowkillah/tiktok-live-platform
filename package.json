@@ -1,5 +1,12 @@
 {
+  "scripts": {
+    "validate-fixtures": "node src/validate-fixtures.js"
+  },
   "dependencies": {
     "@sentry/node": "^10.39.0"
+  },
+  "devDependencies": {
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1"
   }
 }

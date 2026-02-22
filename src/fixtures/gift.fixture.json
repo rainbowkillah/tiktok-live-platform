@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1",
+  "eventId": "b4f2c3d5e6b7890123456789012345678901bcdef2345678901bcdef23456789",
+  "eventType": "GIFT",
+  "triggerId": 2,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440002",
+  "timestamp": "2024-06-01T12:01:00.000Z",
+  "ingestedAt": "2024-06-01T12:01:00.050Z",
+  "source": "live",
+  "seqNo": 2,
+  "user": {
+    "userId": "1002",
+    "uniqueId": "giftgiver99",
+    "displayName": "Gift Giver",
+    "avatarUrl": "https://example.com/avatar/1002.jpg",
+    "followRole": 2,
+    "isModerator": false,
+    "isSubscriber": true
+  },
+  "payload": {
+    "giftId": 5655,
+    "giftName": "Rose",
+    "giftCount": 10,
+    "coins": 10,
+    "diamondCount": 5,
+    "streakActive": false,
+    "streakEnd": true,
+    "giftImageUrl": "https://example.com/gifts/rose.png",
+    "isGiftStreak": true
+  }
+}

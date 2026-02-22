@@ -279,16 +279,30 @@
     "FollowPayload": {
       "$id": "#/definitions/FollowPayload",
       "type": "object",
-      "description": "Payload for FOLLOW events (WebcastSocialMessage, displayType=follow).",
-      "properties": {},
+      "description": "Payload for FOLLOW events (WebcastSocialMessage, displayType=pm_mt_msg_viewer_follow).",
+      "required": ["displayType"],
+      "properties": {
+        "displayType": {
+          "type": "string",
+          "const": "pm_mt_msg_viewer_follow",
+          "description": "Social sub-type discriminator sourced from WebcastSocialMessage.displayType."
+        }
+      },
       "additionalProperties": false
     },
 
     "SharePayload": {
       "$id": "#/definitions/SharePayload",
       "type": "object",
-      "description": "Payload for SHARE events (WebcastSocialMessage, displayType=share).",
-      "properties": {},
+      "description": "Payload for SHARE events (WebcastSocialMessage, displayType=pm_mt_msg_viewer_share).",
+      "required": ["displayType"],
+      "properties": {
+        "displayType": {
+          "type": "string",
+          "const": "pm_mt_msg_viewer_share",
+          "description": "Social sub-type discriminator sourced from WebcastSocialMessage.displayType."
+        }
+      },
       "additionalProperties": false
     },
 
@@ -473,6 +487,7 @@
       "{giftCount}": "payload.giftCount (GIFT events only)",
       "{coins}": "payload.coins (GIFT events only)",
       "{likeCount}": "payload.likeCount (LIKE events only)",
+      "{totalLikeCount}": "payload.totalLikeCount (LIKE events only)",
       "{message}": "payload.message (CHAT events only)",
       "{eventType}": "eventType",
       "{timestamp}": "timestamp (ISO 8601)",

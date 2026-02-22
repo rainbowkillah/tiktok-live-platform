@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1",
+  "eventId": "a3f1c2d4e5b6789012345678901234567890abcdef1234567890abcdef123456",
+  "eventType": "CHAT",
+  "triggerId": 1,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440001",
+  "timestamp": "2024-06-01T12:00:00.000Z",
+  "ingestedAt": "2024-06-01T12:00:00.050Z",
+  "source": "live",
+  "seqNo": 1,
+  "user": {
+    "userId": "1001",
+    "uniqueId": "testuser1",
+    "displayName": "Test User One",
+    "avatarUrl": "https://example.com/avatar/1001.jpg",
+    "followRole": 1,
+    "isModerator": false,
+    "isSubscriber": false
+  },
+  "payload": {
+    "message": "Hello stream!",
+    "emotes": [
+      {
+        "emoteId": "emote_001",
+        "emoteImageUrl": "https://example.com/emotes/emote_001.png",
+        "placeholderIndex": 0
+      }
+    ],
+    "language": "en"
+  }
+}

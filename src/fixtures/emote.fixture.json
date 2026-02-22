@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1",
+  "eventId": "1af8c9d1e2b3456789012345678901234567123890123456123890123456789b",
+  "eventType": "EMOTE",
+  "triggerId": 8,
+  "streamId": "7123456789",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440008",
+  "timestamp": "2024-06-01T12:07:00.000Z",
+  "ingestedAt": "2024-06-01T12:07:00.050Z",
+  "source": "live",
+  "seqNo": 8,
+  "user": {
+    "userId": "1008",
+    "uniqueId": "emotefan",
+    "displayName": "Emote Fan",
+    "followRole": 1,
+    "isModerator": false,
+    "isSubscriber": false
+  },
+  "payload": {
+    "emoteId": "7181998690699493634",
+    "emoteImageUrl": "https://example.com/emotes/7181998690699493634.png",
+    "emoteType": "EMOTETYPENORMAL"
+  }
+}
