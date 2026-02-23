@@ -208,7 +208,7 @@ The ingestion layer wraps [`tiktok-live-connector`](https://www.npmjs.com/packag
 **Responsibilities:**
 - Matches incoming `UnifiedEvent` against stored rules
 - Rule structure: `{ eventType, condition: jsonLogic, action: { type, template } }`
-- Template rendering: replaces `{username}`, `{displayName}`, `{giftName}`, `{giftCount}`, `{coins}`, `{message}`, `{eventType}`, `{timestamp}`, `{streamId}` with values from the event
+- Template rendering: replaces `{userId}`, `{username}`, `{displayName}`, `{giftName}`, `{giftCount}`, `{coins}`, `{likeCount}`, `{totalLikeCount}`, `{subMonth}`, `{emoteImageUrl}`, `{message}`, `{eventType}`, `{timestamp}`, `{streamId}`, `{sessionId}` with values from the event
 - Supported actions: `announce` (send chat message), `moderate` (timeout/ban), `webhook` (POST to external URL), `log` (audit log only)
 - All executions logged to `actions_log` table
 

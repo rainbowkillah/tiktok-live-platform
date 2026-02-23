@@ -488,6 +488,8 @@
       "{coins}": "payload.coins (GIFT events only)",
       "{likeCount}": "payload.likeCount (LIKE events only)",
       "{totalLikeCount}": "payload.totalLikeCount (LIKE events only)",
+      "{subMonth}": "payload.subMonth (SUBSCRIBE events only)",
+      "{emoteImageUrl}": "payload.emoteImageUrl (EMOTE events only)",
       "{message}": "payload.message (CHAT events only)",
       "{eventType}": "eventType",
       "{timestamp}": "timestamp (ISO 8601)",

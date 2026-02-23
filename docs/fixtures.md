@@ -94,8 +94,8 @@ Template placeholders exercised: `{giftName}`, `{giftCount}`, `{coins}`, `{usern
 
 Represents a batch of 15 likes. `totalLikeCount` reflects the cumulative stream total at the time of the event.
 
-Key payload fields: `likeCount`, `totalLikeCount`  
-Template placeholders exercised: `{username}`, `{displayName}`
+Key payload fields: `likeCount`, `totalLikeCount`
+Template placeholders exercised: `{username}`, `{displayName}`, `{likeCount}`, `{totalLikeCount}`
 
 ---
 
@@ -142,8 +142,8 @@ Template placeholders exercised: `{username}`, `{displayName}`
 
 Represents a 3-month subscription event (`subMonth: 3`).
 
-Key payload fields: `subMonth`  
-Template placeholders exercised: `{username}`, `{displayName}`
+Key payload fields: `subMonth`
+Template placeholders exercised: `{username}`, `{displayName}`, `{subMonth}`
 
 ---
 
@@ -154,8 +154,8 @@ Template placeholders exercised: `{username}`, `{displayName}`
 
 Represents an emote message with a resolved image URL.
 
-Key payload fields: `emoteId`, `emoteImageUrl`, `emoteType`  
-Template placeholders exercised: `{username}`, `{displayName}`
+Key payload fields: `emoteId`, `emoteImageUrl`, `emoteType`
+Template placeholders exercised: `{username}`, `{displayName}`, `{emoteImageUrl}`
 
 ---
 
