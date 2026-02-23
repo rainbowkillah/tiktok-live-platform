@@ -336,17 +336,22 @@ WHERE created_at < NOW() - INTERVAL '1 year'
   );
 
 -- Step 6: Pseudonymize inactive users (1-year inactivity threshold)
---   Uses meta->>'pseudonymizedAt' as an idempotency guard to prevent
---   re-hashing already-pseudonymized rows.
+--   Algorithm: HMAC-SHA256 with PSEUDONYMIZATION_SECRET (see D-011 and storage.md §4.2).
+--   Uses meta->>'pseudonymizedAt' as an idempotency guard to prevent re-hashing.
 --   Requires pgcrypto: CREATE EXTENSION IF NOT EXISTS pgcrypto;
+--   Pass the secret as a query parameter ($1) from the calling script/job.
 UPDATE users
 SET display_name   = NULL,
     avatar_url     = NULL,
-    unique_id      = encode(digest(unique_id,      'sha256'), 'hex'),
-    tiktok_user_id = encode(digest(tiktok_user_id, 'sha256'), 'hex'),
+    unique_id      = encode(hmac(unique_id,      $1, 'sha256'), 'hex'),
+    tiktok_user_id = encode(hmac(tiktok_user_id, $1, 'sha256'), 'hex'),
     meta           = meta || jsonb_build_object('pseudonymizedAt', NOW())
 WHERE last_seen < NOW() - INTERVAL '1 year'
   AND (meta->>'pseudonymizedAt') IS NULL;
+-- Note: $1 is the PSEUDONYMIZATION_SECRET env var, injected by the pruning script,
+-- never hardcoded in SQL. The corresponding events.user_id update must run in the
+-- same transaction: UPDATE events SET user_id = encode(hmac(user_id, $1, 'sha256'), 'hex')
+-- WHERE user_id IN (SELECT tiktok_user_id FROM users WHERE ...) AND archived_at IS NULL;
 ```
 
 **Retention ordering note**: Steps 1–3 (events and actions_log at 90 days) always run before steps 4–5 (sessions and streams at 1 year), ensuring FK references from `events` and `actions_log` to `sessions` and `streams` are cleared before parent rows are deleted.
@@ -355,8 +360,23 @@ WHERE last_seen < NOW() - INTERVAL '1 year'
 
 ### 4.2 Privacy
 
-- `users.avatar_url` and `users.display_name` are PII. After the retention period, these fields are nulled. Additionally, `tiktok_user_id` and `unique_id` are replaced with a cryptographic hash (strong pseudonymization) via the pruning job.
-- GDPR right-to-erasure is automated via `scripts/gdpr-erasure.ts`. The script pseudonymizes the `users` row (`tiktok_user_id`, `unique_id`, `display_name`, `avatar_url`), updates matching `events.user_id`, and scrubs PII fields from `events.event_data` JSONB.
+**Pseudonymization algorithm**: HMAC-SHA256 with a deployment-specific server secret (see [D-011](decision-log.md#d-011-pseudonymization-strategy--hmac-sha256-with-server-secret) for full rationale and rejected alternatives).
+
+| Field | Retention action | Reason |
+|-------|-----------------|--------|
+| `users.tiktok_user_id` | `encode(hmac(value, $PSEUDONYMIZATION_SECRET, 'sha256'), 'hex')` | Identifier — HMAC preserves referential integrity with `events.user_id` while resisting rainbow table attacks on enumerable numeric IDs |
+| `users.unique_id` | `encode(hmac(value, $PSEUDONYMIZATION_SECRET, 'sha256'), 'hex')` | Identifier — same rationale |
+| `users.display_name` | `NULL` | Display value — no relational integrity role; nulling is sufficient |
+| `users.avatar_url` | `NULL` | Display value — URL is PII (third-party CDN path); nulling is sufficient |
+| `events.user_id` | Updated to match new `users.tiktok_user_id` HMAC in the same transaction | Maintains FK-like consistency between tables |
+| `events.event_data` PII fields (`displayName`, `avatarUrl`) | Scrubbed to `null` | Prevents PII leakage via JSONB payload |
+
+**Requirements**:
+- `pgcrypto` extension must be installed: `CREATE EXTENSION IF NOT EXISTS pgcrypto;`
+- `PSEUDONYMIZATION_SECRET` env var must be set at service startup (minimum 32 bytes recommended); add to `.env.example` and secret manager.
+- Secret rotation: re-hashing all pseudonymized rows is required to maintain cross-table consistency after rotation. Old hashes become uncorrelated with new ones if rotation is not atomic.
+
+- GDPR right-to-erasure is automated via `scripts/gdpr-erasure.ts`. The script pseudonymizes the `users` row (`tiktok_user_id`, `unique_id`, `display_name`, `avatar_url`) using HMAC-SHA256, updates matching `events.user_id`, and scrubs PII fields from `events.event_data` JSONB.
 - Every successful erasure writes an audit record to `actions_log` (requires a valid `rules.id` passed as `--audit-rule-id` or `GDPR_AUDIT_RULE_ID`).
 
 **How to run (`scripts/gdpr-erasure.ts`):**

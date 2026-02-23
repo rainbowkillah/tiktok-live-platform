@@ -232,6 +232,36 @@ Every decision entry must include:
 - **Decided by**: Claude
 - **Related**: [Issue #2](https://github.com/rainbowkillah/tiktok-live-platform/issues/2), [Issue #8](https://github.com/rainbowkillah/tiktok-live-platform/issues/8), [`docs/fixtures.md`](./fixtures.md)
 
+### D-011: Pseudonymization Strategy — HMAC-SHA256 with Server Secret
+
+- **Date**: 2026-02-23
+- **Status**: Accepted
+- **Context**: Two Phase 1 documents left the pseudonymization algorithm undefined. `docs/storage.md §4.2` stated that `tiktok_user_id` and `unique_id` are "replaced with a cryptographic hash" but did not specify the hash function, whether a secret key is used, or how `events.user_id` references are kept consistent. Gemini's review on Issues #2 and #3 flagged that storing bare TikTok user IDs after a retention period may not constitute GDPR-compliant pseudonymization if the identifiers remain reversible. Three options were evaluated (Issue #22).
+- **Decision**: Use **HMAC-SHA256 with a deployment-specific secret** (`PSEUDONYMIZATION_SECRET` env var) to pseudonymize identifier fields:
+  - `users.tiktok_user_id` → `encode(hmac(tiktok_user_id, $PSEUDONYMIZATION_SECRET, 'sha256'), 'hex')`
+  - `users.unique_id` → `encode(hmac(unique_id, $PSEUDONYMIZATION_SECRET, 'sha256'), 'hex')`
+  - `users.display_name` → `NULL`
+  - `users.avatar_url` → `NULL`
+  - `events.user_id` (matching old `tiktok_user_id`) → updated to new HMAC-SHA256 value in the same transaction
+  - `events.event_data` PII fields (`displayName`, `avatarUrl`) → scrubbed to `null` by `gdpr-erasure.ts`
+  - Requires `pgcrypto` extension: `CREATE EXTENSION IF NOT EXISTS pgcrypto;`
+- **Alternatives considered**:
+  - **Option A-bare (SHA-256 without secret)**: Simpler (no secret management). Rejected because TikTok user IDs are sequential numeric strings — a full rainbow table of the ID space is computationally feasible, making bare SHA-256 reversible in practice. Does not constitute robust pseudonymization under GDPR recital 26.
+  - **Option B (random token + mapping table)**: Maximally privacy-preserving; re-identification only possible by admins with mapping table access. Rejected for Phase 2: requires a new table, migration, and significant complexity in the pruning job and erasure script. May be revisited if a statutory right-to-re-identification requirement arises.
+  - **Option C (null all identifier fields)**: Simplest implementation. Rejected because it destroys per-user event counts (`events.user_id`) and makes it impossible to correlate replayed sessions with the originating user, breaking audit integrity.
+- **Rationale**: HMAC-SHA256 with a server secret is deterministic (same user always produces the same pseudonym across the `users` and `events` tables without a secondary lookup), resists rainbow table attacks for enumerable TikTok user IDs, and integrates cleanly with the existing env-var secret pattern already used for `DATABASE_URL` and `EULER_API_KEY`. If the secret is intentionally rotated or deleted, re-identification becomes computationally infeasible — satisfying GDPR right-to-erasure by rendering previously stored hashes unresolvable. Identifier fields (`tiktok_user_id`, `unique_id`) are HMAC'd; display fields (`display_name`, `avatar_url`) are nulled because they carry no relational integrity function.
+- **Consequences**:
+  - `PSEUDONYMIZATION_SECRET` must be added to `.env.example`, deployment docs, and the secret manager checklist.
+  - `docs/storage.md §4.1 Step 6` SQL updated from `digest()` to `hmac()`.
+  - `scripts/gdpr-erasure.ts` must use HMAC-SHA256 (same algorithm) when pseudonymizing on-demand to keep `users` and `events` tables consistent.
+  - Secret rotation requires re-hashing all already-pseudonymized rows (or accepting that old pseudonyms can no longer be correlated with new ones) — documented as a known operational constraint.
+  - `pgcrypto` extension dependency is now mandatory for both the pruning job and the erasure script.
+- **Open questions**:
+  - Should secret rotation tooling (re-pseudonymize all rows atomically) be scoped for Phase 3?
+  - Should `PSEUDONYMIZATION_SECRET` be length-validated at startup (minimum 32 bytes recommended for HMAC-SHA256)?
+- **Decided by**: Claude (Program Lead & Systems Architect)
+- **Related**: [Issue #22](https://github.com/rainbowkillah/tiktok-live-platform/issues/22), [Issue #3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3), [Issue #21](https://github.com/rainbowkillah/tiktok-live-platform/issues/21), [`docs/storage.md §4.1`](./storage.md), [`docs/storage.md §4.2`](./storage.md), [`docs/threat-model.md`](./threat-model.md)
+
 ---
 
 ## Review Status
@@ -248,3 +278,4 @@ Every decision entry must include:
 | D-008 | Claude | Pending | Accepted |
 | D-009 | Claude | Pending | Accepted |
 | D-010 | Claude | Pending | Accepted |
+| D-011 | Claude | Pending | Accepted |
