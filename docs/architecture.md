@@ -183,8 +183,29 @@ The ingestion layer wraps [`tiktok-live-connector`](https://www.npmjs.com/packag
 | `POST` | `/rules` | Create rule | `STREAMER` |
 | `PUT` | `/rules/:id` | Update rule | `STREAMER` |
 | `DELETE` | `/rules/:id` | Delete rule | `STREAMER` |
-| `POST` | `/rules/test` | Test a rule execution | `MODERATOR` |
+| `POST` | `/rules/test` | Test one rule or condition against a `UnifiedEvent` | `STREAMER` or `MODERATOR` |
 | `GET` | `/health` | Health check | `NONE` |
+
+**`POST /rules/test` request / response contract (Phase 2):**
+
+Request body (one of):
+- `{ ruleId: string, event: UnifiedEvent }`
+- `{ condition: JsonLogic, event: UnifiedEvent }`
+
+Response body:
+- `{ matched: boolean, renderedTemplate: string | null, errors: string[] }`
+
+Validation notes:
+- `event` must satisfy `docs/contracts/unified-event.v1.schema.json` (UnifiedEvent v1).
+- Exactly one of `ruleId` or `condition` must be present.
+- `errors` is empty when validation and evaluation succeed.
+
+**UI-flow endpoint coverage check (`docs/ui-flows.md`):**
+- `/streams/:streamId/events` → covered by `GET /streams/:id/events`
+- `/sessions/:sessionId` history flow → covered by `GET /sessions/:id/events`
+- rule creation flow (`POST /rules`) → covered
+- rule testing flow (`POST /rules/test`) → covered
+- No additional API endpoints are referenced in `docs/ui-flows.md` that are missing from this table.
 
 ---
 

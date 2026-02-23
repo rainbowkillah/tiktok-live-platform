@@ -363,14 +363,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"rule\": {\n    \"name\": \"Test Gift Rule\",\n    \"enabled\": true,\n    \"conditions\": {\n      \"eventType\": \"GIFT\",\n      \"minCoins\": 50\n    },\n    \"actions\": [\n      {\n        \"type\": \"log\",\n        \"template\": \"{username} gifted {giftName}\"\n      }\n    ]\n  },\n  \"event\": {\n    \"schemaVersion\": \"1\",\n    \"eventId\": \"b4f2c3d5e6b7890123456789012345678901bcdef2345678901bcdef23456789\",\n    \"eventType\": \"GIFT\",\n    \"triggerId\": 2,\n    \"streamId\": \"7123456789\",\n    \"sessionId\": \"550e8400-e29b-41d4-a716-446655440001\",\n    \"timestamp\": \"2024-06-01T12:01:00.000Z\",\n    \"ingestedAt\": \"2024-06-01T12:01:00.050Z\",\n    \"source\": \"test\",\n    \"seqNo\": 1,\n    \"user\": {\n      \"userId\": \"1002\",\n      \"uniqueId\": \"testuser\",\n      \"displayName\": \"Test User\"\n    },\n    \"payload\": {\n      \"giftId\": 5655,\n      \"giftName\": \"Rose\",\n      \"giftCount\": 10,\n      \"coins\": 100\n    }\n  }\n}"
+              "raw": "{\n  \"ruleId\": \"{{rule_id}}\",\n  \"event\": {\n    \"schemaVersion\": \"1\",\n    \"eventId\": \"b4f2c3d5e6b7890123456789012345678901bcdef2345678901bcdef23456789\",\n    \"eventType\": \"GIFT\",\n    \"triggerId\": 2,\n    \"streamId\": \"7123456789\",\n    \"sessionId\": \"550e8400-e29b-41d4-a716-446655440001\",\n    \"timestamp\": \"2024-06-01T12:01:00.000Z\",\n    \"ingestedAt\": \"2024-06-01T12:01:00.050Z\",\n    \"source\": \"live\",\n    \"seqNo\": 1,\n    \"user\": {\n      \"userId\": \"1002\",\n      \"uniqueId\": \"testuser\",\n      \"displayName\": \"Test User\"\n    },\n    \"payload\": {\n      \"giftId\": 5655,\n      \"giftName\": \"Rose\",\n      \"giftCount\": 10,\n      \"coins\": 100\n    }\n  }\n}"
             },
             "url": {
               "raw": "{{base_url}}/rules/test",
               "host": ["{{base_url}}"],
               "path": ["rules", "test"]
             },
-            "description": "Test a rule against a sample UnifiedEvent without saving the rule. Returns whether the rule matched and what actions would be triggered."
+            "description": "Test a rule against a sample UnifiedEvent without saving changes. Contract supports either `{ ruleId, event }` or `{ condition, event }` payloads and returns `{ matched, renderedTemplate, errors }`."
           },
           "event": [
             {
@@ -386,11 +386,16 @@
                   "    pm.expect(jsonData).to.have.property('matched');",
                   "});",
                   "",
-                  "pm.test('Response has actions field when matched', function () {",
+                  "pm.test('Response has renderedTemplate field', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    if (jsonData.matched === true) {",
-                  "        pm.expect(jsonData).to.have.property('actions');",
-                  "    }",
+                  "    pm.expect(jsonData).to.have.property('renderedTemplate');",
+                  "    pm.expect(jsonData.renderedTemplate === null || typeof jsonData.renderedTemplate === 'string').to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response has errors array field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('errors');",
+                  "    pm.expect(Array.isArray(jsonData.errors)).to.be.true;",
                   "});"
                 ],
                 "type": "text/javascript"
