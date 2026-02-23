@@ -2,14 +2,19 @@
   "scripts": {
     "validate-fixtures": "node src/validate-fixtures.js",
     "audit": "node scripts/audit.js",
-    "test:api": "newman run postman/collections/ttlc.postman_collection.json --environment postman/environments/ci.postman_environment.json"
+    "test:api": "newman run postman/collections/ttlc.postman_collection.json --environment postman/environments/ci.postman_environment.json",
+    "gdpr:erase": "node --import tsx scripts/gdpr-erasure.ts",
+    "test:gdpr-erasure": "node --import tsx --test tests/gdpr-erasure.test.ts"
   },
   "dependencies": {
-    "@sentry/node": "9.17.0"
+    "@sentry/node": "9.17.0",
+    "pg": "^8.18.0"
   },
   "devDependencies": {
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
-    "newman": "^6.2.1"
+    "newman": "^6.2.1",
+    "pg-mem": "^3.0.13",
+    "tsx": "^4.21.0"
   }
 }

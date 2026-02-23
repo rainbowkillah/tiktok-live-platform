@@ -138,7 +138,7 @@ CREATE INDEX idx_events_data_gin           ON events USING GIN (event_data);
 **Append-only policy:**
 - `events` has **no** `UPDATE` or `DELETE` operations from application code
 - Retention pruning sets `archived_at` (soft delete) — rows are excluded from queries via `WHERE archived_at IS NULL`
-- Hard deletion (GDPR right-to-erasure) can only be performed via a dedicated admin operation documented in the runbook
+- GDPR right-to-erasure updates are performed only by a dedicated admin script (`scripts/gdpr-erasure.ts`) in a single DB transaction
 - A `RULE` or trigger that blocks UPDATE/DELETE can be added in Phase 4 hardening
 
 **Columns:**
@@ -315,7 +315,34 @@ WHERE archived_at < NOW() - INTERVAL '30 days';
 ### 4.2 Privacy
 
 - `users.avatar_url` and `users.display_name` are PII. After the retention period, these fields are nulled. Additionally, `tiktok_user_id` and `unique_id` are replaced with a cryptographic hash (strong pseudonymization) via the pruning job.
-- Hard deletion of a user (GDPR right to erasure) is fully automated via the `scripts/gdpr-erasure.ts` script. This script scrubs user fields from the `events` table (including the `event_data` JSONB) and removes the `users` row.
+- GDPR right-to-erasure is automated via `scripts/gdpr-erasure.ts`. The script pseudonymizes the `users` row (`tiktok_user_id`, `unique_id`, `display_name`, `avatar_url`), updates matching `events.user_id`, and scrubs PII fields from `events.event_data` JSONB.
+- Every successful erasure writes an audit record to `actions_log` (requires a valid `rules.id` passed as `--audit-rule-id` or `GDPR_AUDIT_RULE_ID`).
+
+**How to run (`scripts/gdpr-erasure.ts`):**
+
+```bash
+# 1) Configure database connection
+export DATABASE_URL='postgres://user:pass@localhost:5432/ttlc'
+
+# 2) Provide a dedicated audit rule id (existing rules.id)
+export GDPR_AUDIT_RULE_ID='00000000-0000-0000-0000-000000000000'
+
+# 3a) Erase by TikTok numeric user id
+npm run gdpr:erase -- --userId 1234567890
+
+# 3b) Erase by unique handle
+npm run gdpr:erase -- --uniqueId streamer_handle
+```
+
+**Output contract:**
+- JSON summary with `rowsAffected`, `tablesTouched`, and `timestamp`
+- Exit code `0` on success
+- Non-zero exit code on failure (transaction rollback prevents partial erasure)
+
+**Pre-flight checklist:**
+- Confirm target user identity (`userId` or `uniqueId`)
+- Confirm `GDPR_AUDIT_RULE_ID` references a valid `rules.id`
+- Run in a privileged maintenance context (not application runtime credentials)
 - See [docs/privacy-policy.md](privacy-policy.md) (Gemini-owned) for the full data retention and privacy policy.
 
 ---
