@@ -261,6 +261,8 @@ The session replay fixture will be created as part of the Phase 2 vertical slice
 
 ## 6. Adding New Fixtures
 
+### 6.1 Creating a Fixture Manually
+
 When a new canonical event type is added to `unified-event.v1.schema.json`:
 
 1. Create `src/fixtures/<eventtype>.fixture.json` following the naming convention (lowercase)
@@ -269,3 +271,152 @@ When a new canonical event type is added to `unified-event.v1.schema.json`:
 4. Add the fixture to the `tests/fixtures/session-replay.json` sequence if applicable
 5. Update this catalog document (§3)
 6. Update the Postman collection with an example request/response using the new fixture
+
+### 6.2 Recording a Fixture from a Live TikTok Stream
+
+> **Phase 2+ only.** Phase 1 fixtures are hand-crafted synthetic data; this section documents the Phase 2 recording workflow so it can be planned and reviewed as part of the Phase 1 deliverable. The recording steps below apply once the ingest service is operational.
+
+**Prerequisites**: A running ingest service connected to a TikTok LIVE stream with `NODE_ENV=development` set (enables the raw event logger).
+
+**Step 1 — Capture raw events**
+
+The ingest service writes a newline-delimited JSON log to `logs/raw-events.ndjson` when `RECORD_FIXTURES=true` is set:
+
+```bash
+RECORD_FIXTURES=true npm run ingest -- --username <tiktok-username>
+```
+
+Each line in `logs/raw-events.ndjson` is a single `UnifiedEvent` JSON object emitted by the normalizer.
+
+**Step 2 — Extract the event of interest**
+
+```bash
+# Print all GIFT events from the recording
+node -e "
+  const fs = require('fs');
+  const lines = fs.readFileSync('logs/raw-events.ndjson', 'utf8').split('\n').filter(Boolean);
+  for (const [i, line] of lines.entries()) {
+    let evt;
+    try { evt = JSON.parse(line); } catch (e) { console.error('Parse error at line', i + 1, e.message); continue; }
+    if (evt.eventType === 'GIFT') console.log(JSON.stringify(evt, null, 2));
+  }
+"
+```
+
+**Step 3 — Anonymize and sanitize the event** (see §7 for required anonymization steps)
+
+**Step 4 — Save the sanitized fixture**
+
+Copy the sanitized JSON to `src/fixtures/<eventtype>.fixture.json`, then run:
+
+```bash
+npm run validate-fixtures
+```
+
+### 6.3 Replaying Fixtures Through the Pipeline
+
+> **Phase 2+ only.** The replay pipeline requires a running Redis and Postgres instance (see `docker-compose.test.yml`).
+
+**Step 1 — Start infrastructure**
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+```
+
+**Step 2 — Inject a single fixture into the pipeline**
+
+```bash
+# Publish a single fixture to the ttlc:raw Redis stream
+node -e "
+  const Redis = require('ioredis');
+  const fixture = require('./src/fixtures/gift.fixture.json');
+  const redis = new Redis();
+  redis.xadd('ttlc:raw', '*', 'data', JSON.stringify(fixture))
+    .then(() => { console.log('Injected'); })
+    .catch(err => { console.error('Inject failed:', err.message); process.exitCode = 1; })
+    .finally(() => redis.disconnect());
+"
+```
+
+**Step 3 — Inject a full session-replay sequence**
+
+Once `tests/fixtures/session-replay.json` is available (Phase 2), replay the entire sequence:
+
+```bash
+node -e "
+  const Redis = require('ioredis');
+  const events = require('./tests/fixtures/session-replay.json');
+  const redis = new Redis();
+  (async () => {
+    try {
+      for (const evt of events) {
+        await redis.xadd('ttlc:raw', '*', 'data', JSON.stringify(evt));
+      }
+      console.log('Injected', events.length, 'events');
+    } catch (err) {
+      console.error('Inject failed:', err.message);
+      process.exitCode = 1;
+    } finally {
+      redis.disconnect();
+    }
+  })();
+"
+```
+
+**Step 4 — Observe output**
+
+- Monitor the SSE stream: `curl -N http://localhost:3000/events`
+- Query stored events: `GET /sessions/:id/events`
+- Check Redis consumer lag: `redis-cli XINFO GROUPS ttlc:raw`
+
+**Step 5 — Tear down infrastructure**
+
+```bash
+docker compose -f docker-compose.test.yml down
+```
+
+---
+
+## 7. Data Privacy and Anonymization
+
+### 7.1 Fixture Data Policy
+
+All fixtures in `src/fixtures/` **must use synthetic (hand-crafted) test data**. Fixtures must never contain real TikTok user data, real stream IDs from production streams, or real chat messages.
+
+| Reserved test value | Field | Purpose |
+|---|---|---|
+| `7123456789` | `streamId` | Fake TikTok room ID reserved for test use |
+| `550e8400-e29b-41d4-a716-446655440001`–`446655440013` | `sessionId` | UUID range reserved for test use (last digits 01–13 map to fixture sequence numbers) |
+| `1001`–`1099` | `user.userId` | Fake user IDs reserved for test use |
+| `testuser1`, `giftgiver99`, etc. | `user.uniqueId` | Pseudonymous test usernames |
+| `0` / `system` | `userId` / `uniqueId` | Synthetic identity for lifecycle events |
+
+These reserved values **must never appear in production data**. The storage writer and ingest service must validate this at startup in staging/production environments.
+
+### 7.2 Anonymization Requirements for Recorded Fixtures
+
+If a fixture is derived from a real TikTok stream recording (Phase 2+), the following fields **must be anonymized before committing to the repository**:
+
+| Field | Required treatment |
+|---|---|
+| `user.userId` | Replace with a value from the reserved `1001`–`1099` range |
+| `user.uniqueId` | Replace with a pseudonym (e.g., `testuser1`) |
+| `user.displayName` | Replace with a pseudonym (e.g., `Test User One`) |
+| `user.avatarUrl` | Replace with `https://example.com/avatar/<userId>.jpg` |
+| `streamId` | Replace with `7123456789` |
+| `sessionId` | Replace with a value in the reserved UUID range (`550e8400-e29b-41d4-a716-446655440001` – `446655440013`) |
+| `payload.message` (CHAT) | Replace with a non-sensitive placeholder (e.g., `"Hello stream!"`) |
+| `payload.data` (RAW) | Strip any user-identifiable fields from the nested object |
+| `eventId` | Recompute from the sanitized `(streamId, sessionId, seqNo, rawType)` tuple |
+
+### 7.3 Fixture Review Gate
+
+Before any fixture derived from live data is merged into the repository:
+
+1. A peer agent or human reviewer must verify that all fields listed in §7.2 have been anonymized.
+2. The PR description must include a statement confirming that no real user data is present.
+3. `npm run validate-fixtures` must pass.
+
+### 7.4 Long-term Retention of Raw Recordings
+
+Raw unprocessed recordings (the `logs/raw-events.ndjson` files produced during capture) **must not be committed to the repository**. They should be stored in a private, access-controlled location (e.g., an encrypted S3 bucket) and deleted after the fixture is extracted and anonymized. The `logs/` directory is listed in `.gitignore` to prevent accidental commits.
