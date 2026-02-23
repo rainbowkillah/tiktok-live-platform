@@ -137,15 +137,7 @@ prompt: |
   - Include review outcomes (Approved, Approved with changes, Rejected) in the issue comments and adjust the card status accordingly.
   - The GitHub Project board becomes the single source of truth for the project timeline; agents should refer to it during stand‑ups and planning.
 
-  7. Immediate Next Steps (Day 0 Outputs)
-
-  - Claude: draft architecture.md, unified-event.v1.schema.json and storage.md; create corresponding GitHub issues/cards with deliverable headers.
-  - Gemini: draft ui-flows.md and threat-model.md; create GitHub issues/cards.
-  - Copilot: draft test-plan.md, fixtures.md and a Postman collection; create GitHub issues/cards.
-  - All agents: contribute to decision-log.md and propose the initial risk register.
-  - Create the GitHub Project board (https://github.com/users/rainbowkillah/projects/15) in the repository designated for the tiktok-live-platform. Add columns for each phase and begin tracking the above tasks immediately.
-
-  8. Notes on TikTok Connectivity & Security
+  7. Notes on TikTok Connectivity & Security
 
   - Reverse‑engineered connectors are brittle: plan for breakage, captchas and rate‑limits. Provide fallback routes, prefer the Euler WS API for production and document caveats.
   - Treat sessionId and any signing/JWT secrets as radioactive — never commit them to the repository. Use environment variables and secret management in CI.
