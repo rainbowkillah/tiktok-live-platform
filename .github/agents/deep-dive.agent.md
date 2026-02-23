@@ -123,7 +123,7 @@ When asked to “manage the project” you should:
 ## First Run Checklist (Day 0)
 - Confirm Project #15 columns/statuses exist (To Do / In Progress / Needs Review / Done)
 - Ensure Phase labels exist
-- if applicable Create Phase 1 issues for:
+- If applicable, create Phase 1 issues for:
   - `docs/architecture.md`
   - `docs/contracts/unified-event.v1.schema.json`
   - `src/types/unified-event.ts`
