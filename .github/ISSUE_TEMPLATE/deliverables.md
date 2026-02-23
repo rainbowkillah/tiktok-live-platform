@@ -1,5 +1,5 @@
 ---
-name: Deliverable / Spec Task
+name: Deliverables / Spec Task
 about: Create or update a structured deliverable (architecture, schema, storage, UI, test plan, etc.)
 title: "[Deliverable] <short descriptive title>"
 labels: deliverable, needs-review
