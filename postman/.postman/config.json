@@ -5,14 +5,18 @@
   "entities": {
     "environments": [
       "..\\environments\\ci.postman_environment.json",
-      "..\\environments\\local.postman_environment.json"
+      "..\\environments\\local.postman_environment.json",
+      "..\\environments\\env.postman_environment.json",
+      "..\\environments\\TikTok LIVE Platform - Local.postman_environment.json"
     ],
     "flows": [],
     "globals": [],
     "mocks": [],
     "specs": [],
     "collections": [
-      "..\\ttlc.postman_collection.json"
+      "..\\ttlc.postman_collection.json",
+      "..\\collections\\TikTok LIVE Platform.postman_collection.json",
+      "..\\collections\\ttlc.postman_collection.json"
     ]
   }
 }
