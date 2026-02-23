@@ -133,16 +133,17 @@ Every decision entry must include:
 - **Date**: 2026-02-22
 - **Status**: Accepted
 - **Context**: Event ingestion/replay paths require idempotent writes and deterministic dedupe.
-- **Decision**: `eventId = SHA-256(streamId + ':' + seqNo + ':' + rawType)` with lifecycle fallback strategy.
+- **Decision**: `eventId = SHA-256(streamId + ':' + sessionId + ':' + seqNo + ':' + rawType)` — `sessionId` is mandatory in the hash input.
 - **Alternatives considered**:
   - TikTok-native message IDs.
   - Random UUID v4.
   - UUID v5 namespace hashing.
-- **Rationale**: Hashing selected event identity fields provides deterministic dedupe without relying on provider-specific IDs.
+  - `SHA-256(streamId + ':' + seqNo + ':' + rawType)` without `sessionId` — **rejected** because replay sessions reuse the same (streamId, seqNo, rawType) tuples, producing hash collisions that would silently drop replay events via `ON CONFLICT DO NOTHING`.
+- **Rationale**: Including `sessionId` ensures each replay or reconnect session produces globally unique event IDs, preserving idempotent storage semantics across both live and replay paths.
 - **Consequences**:
-  - Normalizer must consistently supply/derive `seqNo` and `rawType`.
-  - Storage constraints depend on stable hash composition.
-- **Open questions**: Should `sessionId` be mandatory in hash input if reconnect uniqueness issues appear?
+  - Normalizer must consistently supply `sessionId`, `seqNo`, and `rawType`.
+  - Storage `ON CONFLICT DO NOTHING` on `event_id` correctly dedupes within a session without colliding across sessions.
+- **Open questions**: None — `sessionId` inclusion resolved by cross-checking against `unified-event.v1.schema.json` and `storage.md`.
 - **Decided by**: Claude
 - **Related**: [Issue #2](https://github.com/rainbowkillah/tiktok-live-platform/issues/2), [Issue #3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3), [Issue #9](https://github.com/rainbowkillah/tiktok-live-platform/issues/9), [`docs/contracts/unified-event.v1.schema.json`](./contracts/unified-event.v1.schema.json)
 

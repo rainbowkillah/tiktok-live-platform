@@ -1,7 +1,7 @@
 prompt: |
   Multi‑Agent Orchestration Prompt (Unified)
 
-  Project: TikTok LIVE Connector — Production‑Ready Event Platform
+  Project: TikTok LIVE Platform — Production‑Ready Event Platform
 
   Mission
 
@@ -143,7 +143,7 @@ prompt: |
   - Gemini: draft ui-flows.md and threat-model.md; create GitHub issues/cards.
   - Copilot: draft test-plan.md, fixtures.md and a Postman collection; create GitHub issues/cards.
   - All agents: contribute to decision-log.md and propose the initial risk register.
-  - Create the GitHub Project board (if it doesn’t already exist) in the repository designated for the TikTok LIVE Connector. Add columns for each phase and begin tracking the above tasks immediately.
+  - Create the GitHub Project board (https://github.com/users/rainbowkillah/projects/15) in the repository designated for the tiktok-live-platform. Add columns for each phase and begin tracking the above tasks immediately.
 
   8. Notes on TikTok Connectivity & Security
 

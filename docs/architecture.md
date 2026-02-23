@@ -131,7 +131,7 @@ The ingestion layer wraps [`tiktok-live-connector`](https://www.npmjs.com/packag
 - Reads from consumer group `normalizer` on `ttlc:raw`
 - Looks up `type` in the trigger-type mapping table (see §5) to get the canonical `eventType`
 - Constructs a `UnifiedEvent` conforming to `unified-event.v1.schema.json`
-- Computes `eventId = sha256(streamId + ":" + seqNo + ":" + type)` for idempotent storage
+- Computes `eventId = sha256(streamId + ":" + sessionId + ":" + seqNo + ":" + type)` for idempotent storage (including `sessionId` ensures replay sessions generate distinct event IDs even when streamId + seqNo + type collide)
 - **Social sub-type disambiguation**: `WebcastSocialMessage` maps to `FOLLOW`, `SHARE`, or `SUBSCRIBE` based on the `displayType` field in the proto payload
 - Publishes `UnifiedEvent` JSON to `ttlc:events`
 - Emits a `PARSE_ERROR` dead-letter message to `ttlc:dlq` if normalization fails
