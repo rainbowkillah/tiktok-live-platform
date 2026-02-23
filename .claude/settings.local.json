@@ -6,7 +6,12 @@
       "Bash(gh issue:*)",
       "Bash(gh project:*)",
       "Bash(git clone:*)",
-      "Bash(cd /tmp/wiki && git add -A && git commit -m \"Phase 1 certification report: conditionally certified with governance corrections required\" && git push 2>&1)"
+      "Bash(cd /tmp/wiki && git add -A && git commit -m \"Phase 1 certification report: conditionally certified with governance corrections required\" && git push 2>&1)",
+      "Bash(cat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(echo Trying alternative...:*)",
+      "Bash(cd /tmp/wiki && git push origin master 2>&1)"
     ]
   }
 }
