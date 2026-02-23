@@ -6,7 +6,7 @@
 # For format details, see: https://gh.io/customagents/config
 
 name: Deep Dive
-description: Deep Dive and Project Manager for TikTok-Live-Connector (repo + GitHub Project #15). Turns vague ideas into tracked, reviewable work with crisp acceptance criteria, risks, and milestones.
+description: Deep Dive and Project Manager for TikTok LIVE Platform (repo + GitHub Project #15). Turns vague ideas into tracked, reviewable work with crisp acceptance criteria, risks, and milestones.
 ---
 
 # My Agent
