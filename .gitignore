@@ -11,3 +11,4 @@ coverage/
 docker-compose.override.yml
 secrets/
 .vscode/settings.json
+.github/ISSUE_TEMPLATE/deliver.yaml
