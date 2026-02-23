@@ -1,23 +1,57 @@
-# Decision Log — TikTok LIVE Platform
+# Decision Log - TikTok LIVE Platform
 
 **Owner Agent**: Claude (Program Lead & Systems Architect)
-**Depends on**: All Phase 1 deliverables
-**GitHub Issue**: [#250](https://github.com/rainbowkillah/crispy-enigma/issues/250)
-**Status**: Living document — updated as decisions are made
+**Depends on**: `docs/architecture.md`, `docs/contracts/unified-event.v1.schema.json`, `src/types/unified-event.ts`, `docs/storage.md`, `docs/threat-model.md`, `docs/ui-flows.md`, `docs/test-plan.md`, `postman/collections/ttlc.postman_collection.json`, `docs/fixtures.md`
+**GitHub Issue**: [#10](https://github.com/rainbowkillah/tiktok-live-platform/issues/10)
+**Status**: Living document - updated when decisions are accepted, amended, or reversed
 
 ---
 
-## Format
+## Decision Record Structure
 
-Each entry:
-- **ID**: `D-NNN`
-- **Date**: ISO 8601
-- **Context**: Why this decision was needed
-- **Decision**: What was chosen
-- **Alternatives considered**: Other options evaluated
-- **Rationale**: Why this option was chosen
-- **Open questions**: Unresolved follow-on issues
-- **Decided by**: Agent(s) responsible
+Every decision entry must include:
+- **ID**: `D-NNN` (sequential)
+- **Date**: ISO 8601 date
+- **Status**: `Proposed`, `Accepted`, `Superseded`, or `Reversed`
+- **Context**: why this decision was required
+- **Decision**: what was chosen
+- **Alternatives considered**: meaningful options evaluated
+- **Rationale**: why this option was selected
+- **Consequences**: expected impact, constraints, and follow-on work
+- **Open questions**: unresolved follow-up items (or `None`)
+- **Decided by**: agent(s) and/or user
+- **Related**: links to repository issues and supporting docs
+
+## Update Ownership and Workflow
+
+- The author of a material architecture/product decision is responsible for adding or updating an entry in this file in the same PR.
+- The owning agent (Claude) reviews for completeness and consistency.
+- Contributors from other agents are recorded in **Decided by** when applicable.
+- Dissenting opinions are recorded in **Alternatives considered** and, if unresolved, carried into **Open questions**.
+
+## Amendments and Reversals
+
+- Do not rewrite history for accepted decisions.
+- To amend a decision, create a new entry with a new ID and add `Supersedes: D-XYZ` in the **Decision** section.
+- To reverse a decision, create a new entry with a new ID and add `Reverses: D-XYZ` in the **Decision** section.
+- Update the prior entry's **Status** to `Superseded` or `Reversed` and link the replacing record under **Related**.
+
+## Entry Template
+
+```md
+### D-0NN: Short Title
+
+- **Date**: YYYY-MM-DD
+- **Status**: Accepted
+- **Context**:
+- **Decision**:
+- **Alternatives considered**:
+- **Rationale**:
+- **Consequences**:
+- **Open questions**:
+- **Decided by**:
+- **Related**:
+```
 
 ---
 
@@ -26,148 +60,176 @@ Each entry:
 ### D-001: Separate Platform Repository
 
 - **Date**: 2026-02-22
-- **Context**: The project needed to determine whether to extend the existing `tiktok-live-connector` npm library or build the platform in a new repository.
-- **Decision**: Build the platform in a **new separate repository** (`tiktok-live-platform`) that imports `tiktok-live-connector` as an npm dependency.
+- **Status**: Accepted
+- **Context**: Determine whether to extend `tiktok-live-connector` directly or build this platform as a separate system.
+- **Decision**: Build `tiktok-live-platform` as a separate repository and consume `tiktok-live-connector` as an npm dependency.
 - **Alternatives considered**:
-  - *Monorepo (extend tiktok-live-connector)*: Would couple the platform to the library's release cycle and scope creep the library's purpose.
-  - *Fork tiktok-live-connector*: Would require maintaining a fork, increasing long-term maintenance burden.
-- **Rationale**: Clean separation of concerns. The `tiktok-live-connector` library remains a focused, reusable npm package. The platform has its own deployment topology, storage, and UI concerns that don't belong in the library.
-- **Open questions**: Should the platform eventually publish its own types package that imports from both repos?
+  - Extend connector in a monorepo.
+  - Maintain a long-lived fork of connector.
+- **Rationale**: Keeps connector scope focused while allowing platform-specific architecture, operations, and release cadence.
+- **Consequences**:
+  - Requires explicit versioning/integration contracts between repos.
+  - Avoids coupling platform release velocity to connector internals.
+- **Open questions**: Should a shared cross-repo types package be published later?
 - **Decided by**: Claude (user-confirmed)
+- **Related**: [Issue #1](https://github.com/rainbowkillah/tiktok-live-platform/issues/1), [`docs/architecture.md`](./architecture.md)
 
----
-
-### D-002: Event Bus — Redis Streams
-
-- **Date**: 2026-02-22
-- **Context**: The pipeline needs a fan-out mechanism between the ingest/normalizer services and the downstream consumers (storage-writer, API, rule engine, forwarder). Multiple technology options were evaluated.
-- **Decision**: Use **Redis Streams** as the internal event bus.
-- **Alternatives considered**:
-  - *NATS JetStream*: Excellent performance and consumer groups, but adds a fourth infrastructure dependency (Postgres + Redis + NATS). Overkill for Phase 2 scale.
-  - *Postgres LISTEN/NOTIFY*: Zero additional infrastructure, but is polling-based under the hood, lacks persistence beyond session, and has 8KB payload limit on NOTIFY.
-  - *RabbitMQ*: Mature but heavyweight; requires additional ops knowledge.
-  - *In-process EventEmitter*: Works only for single-process deployments; blocks horizontal scaling.
-- **Rationale**: Redis is already required for caching/session management. Redis Streams provide persistence, consumer groups (competing consumers), `XACK`-based at-least-once delivery, configurable `MAXLEN` for bounded memory, and replay-injection support. No extra infrastructure dependency.
-- **Open questions**: If scale requires >100k events/min, revisit NATS.
-- **Decided by**: Claude
-
----
-
-### D-003: Primary Storage — PostgreSQL
+### D-002: Event Bus - Redis Streams
 
 - **Date**: 2026-02-22
-- **Context**: The platform needs durable, queryable storage for events, sessions, users, rules, and audit logs.
-- **Decision**: Use **PostgreSQL** as the primary storage backend.
+- **Status**: Accepted
+- **Context**: Need durable internal fan-out from ingest/normalizer to storage, API, rule engine, and forwarder.
+- **Decision**: Use Redis Streams as the internal event bus.
 - **Alternatives considered**:
-  - *MongoDB*: JSONB-style storage, flexible schema. However, Postgres `JSONB` provides the same flexibility with stronger consistency guarantees and better SQL query support for analytics.
-  - *ClickHouse / TimescaleDB*: Excellent for time-series analytics at scale, but adds operational complexity. Deferred to Phase 4 if Postgres query performance becomes a bottleneck.
-  - *SQLite*: Too limited for multi-process concurrent writes.
-- **Rationale**: Postgres is the industry standard for structured + semi-structured data. The `JSONB` column on `events` gives schema flexibility while SQL provides powerful analytics. Well-supported by all managed cloud providers.
-- **Open questions**: If Phase 4 analytics load is too heavy for Postgres, evaluate read-replica or TimescaleDB extension.
+  - NATS JetStream.
+  - PostgreSQL LISTEN/NOTIFY.
+  - RabbitMQ.
+  - In-process event emitter.
+- **Rationale**: Redis already exists in the stack and Streams provide persistence plus consumer-group delivery.
+- **Consequences**:
+  - Introduces stream retention and dead-letter management requirements.
+  - Preserves replay-friendly at-least-once semantics for downstream services.
+- **Open questions**: Re-evaluate NATS if sustained scale exceeds Redis Streams limits.
 - **Decided by**: Claude
+- **Related**: [Issue #1](https://github.com/rainbowkillah/tiktok-live-platform/issues/1), [`docs/architecture.md`](./architecture.md), [`docs/storage.md`](./storage.md)
 
----
-
-### D-004: Ingest Provider Strategy — `direct` vs `euler`
+### D-003: Primary Storage - PostgreSQL
 
 - **Date**: 2026-02-22
-- **Context**: TikTok LIVE connectivity can be achieved via direct reverse-engineered WebSocket (via `tiktok-live-connector`) or via the Euler Stream API (a stable paid/freemium alternative).
-- **Decision**: Support **both providers** via `INGEST_PROVIDER` env var (`direct` | `euler`). Default to `direct` for development; recommend `euler` for production.
+- **Status**: Accepted
+- **Context**: Need durable event/session/rule storage with strong querying and operational maturity.
+- **Decision**: Use PostgreSQL as primary storage.
 - **Alternatives considered**:
-  - *Euler only*: Eliminates reverse-engineering fragility but introduces API cost and vendor dependency.
-  - *Direct only*: Free, but fragile (TikTok changes break it; captchas; rate limits).
-- **Rationale**: Developers should be able to run the stack without an Euler API key. Production deployments benefit from Euler's stability. The abstraction at the ingest layer means the rest of the pipeline is provider-agnostic.
-- **Open questions**: Should `euler` become the default once Euler API is free tier confirmed?
+  - MongoDB.
+  - ClickHouse/TimescaleDB (deferred).
+  - SQLite.
+- **Rationale**: PostgreSQL supports relational + JSONB needs with strong consistency and broad managed-service support.
+- **Consequences**:
+  - Schema and indexing discipline are required for long-term performance.
+  - Time-series scale-out decisions are deferred to later phases.
+- **Open questions**: Trigger criteria for moving heavy analytics workloads off primary Postgres.
 - **Decided by**: Claude
+- **Related**: [Issue #3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3), [`docs/storage.md`](./storage.md)
 
----
+### D-004: Ingest Provider Strategy - `direct` and `euler`
+
+- **Date**: 2026-02-22
+- **Status**: Accepted
+- **Context**: TikTok ingest reliability differs between direct connector mode and Euler API mode.
+- **Decision**: Support `INGEST_PROVIDER=direct|euler`; default to `direct` for local development.
+- **Alternatives considered**:
+  - Euler only.
+  - Direct only.
+- **Rationale**: Preserves local developer accessibility while allowing production stability via Euler.
+- **Consequences**:
+  - Requires provider abstraction and cross-provider regression testing.
+  - Operational runbooks must include provider-specific failure handling.
+- **Open questions**: Whether `euler` should become the future production default.
+- **Decided by**: Claude
+- **Related**: [Issue #1](https://github.com/rainbowkillah/tiktok-live-platform/issues/1), [`docs/architecture.md`](./architecture.md), [`docs/test-plan.md`](./test-plan.md)
 
 ### D-005: UnifiedEvent `eventId` Dedupe Key
 
 - **Date**: 2026-02-22
-- **Context**: Events must be stored idempotently — the same TikTok event arriving twice (e.g., during reconnect overlap) should not create duplicate rows.
-- **Decision**: `eventId = SHA-256(streamId + ":" + seqNo + ":" + rawType)` as a hex string (64 chars).
+- **Status**: Accepted
+- **Context**: Event ingestion/replay paths require idempotent writes and deterministic dedupe.
+- **Decision**: `eventId = SHA-256(streamId + ':' + seqNo + ':' + rawType)` with lifecycle fallback strategy.
 - **Alternatives considered**:
-  - *TikTok-provided message ID*: Not consistently present in all message types.
-  - *UUID v4*: Random; provides no deduplication.
-  - *UUID v5 (namespace hash)*: Semantically equivalent to SHA-256 approach but adds a dependency on UUID library.
-- **Rationale**: SHA-256 over the tuple `(streamId, seqNo, rawType)` is deterministic and collision-resistant. `seqNo` is provided by TikTok's WebSocket frame header and is monotonically increasing within a connection. If `seqNo` is not available (lifecycle events), fall back to `SHA-256(streamId + ":" + eventType + ":" + ingestedAt.toISOString())`.
-- **Open questions**: Is `seqNo` guaranteed unique within a stream across reconnects? If not, we may need to include `sessionId` in the hash.
+  - TikTok-native message IDs.
+  - Random UUID v4.
+  - UUID v5 namespace hashing.
+- **Rationale**: Hashing selected event identity fields provides deterministic dedupe without relying on provider-specific IDs.
+- **Consequences**:
+  - Normalizer must consistently supply/derive `seqNo` and `rawType`.
+  - Storage constraints depend on stable hash composition.
+- **Open questions**: Should `sessionId` be mandatory in hash input if reconnect uniqueness issues appear?
 - **Decided by**: Claude
-
----
+- **Related**: [Issue #2](https://github.com/rainbowkillah/tiktok-live-platform/issues/2), [Issue #3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3), [Issue #9](https://github.com/rainbowkillah/tiktok-live-platform/issues/9), [`docs/contracts/unified-event.v1.schema.json`](./contracts/unified-event.v1.schema.json)
 
 ### D-006: `WebcastSocialMessage` Sub-Type Disambiguation
 
 - **Date**: 2026-02-22
-- **Context**: The `tiktok-live-connector` library emits a single `social` event for follows, shares, and subscriptions. The UnifiedEvent schema requires separate canonical types: `FOLLOW`, `SHARE`, `SUBSCRIBE`.
-- **Decision**: The normalizer reads the `displayType` field from the `WebcastSocialMessage` proto payload and maps to the appropriate canonical type:
-  - Contains `follow` → `FOLLOW`
-  - Contains `share` → `SHARE`
-  - Contains `subscribe` → `SUBSCRIBE`
-  - Unknown → `RAW` (with `rawType = 'WebcastSocialMessage'`)
+- **Status**: Accepted
+- **Context**: Connector emits a shared social event type, while platform contracts require canonical `FOLLOW`, `SHARE`, and `SUBSCRIBE`.
+- **Decision**: Parse `displayType`; map follow/share/subscribe variants to canonical event types, fallback to `RAW` on unknown values.
 - **Alternatives considered**:
-  - *Keep as a single `SOCIAL` canonical type*: Simpler, but the rule engine and UI need to distinguish these; a GIFT rule should not fire for a FOLLOW.
-  - *Inspect the proto type directly in the connector*: Would require modifying `tiktok-live-connector`, violating the separation-of-concerns goal.
-- **Rationale**: `displayType` is stable and human-readable. The library already does this disambiguation for `WebcastEvent.FOLLOW` and `WebcastEvent.SHARE` in the custom event layer, confirming it's reliable.
-- **Open questions**: Are there other `displayType` values not yet documented?
+  - Keep single `SOCIAL` canonical event.
+  - Patch connector internals.
+- **Rationale**: Preserves rule/UI clarity without coupling platform to connector implementation details.
+- **Consequences**:
+  - Mapping logic must be maintained as new `displayType` variants appear.
+  - Unknown values are retained safely via RAW events.
+- **Open questions**: Enumerate additional `displayType` values from live capture fixtures.
 - **Decided by**: Claude
-
----
+- **Related**: [Issue #2](https://github.com/rainbowkillah/tiktok-live-platform/issues/2), [Issue #8](https://github.com/rainbowkillah/tiktok-live-platform/issues/8), [`docs/contracts/unified-event.v1.schema.json`](./contracts/unified-event.v1.schema.json)
 
 ### D-007: Append-Only `events` Table
 
 - **Date**: 2026-02-22
-- **Context**: Event stores should preserve history for audit, replay, and analytics. Mutable storage risks accidental data loss.
-- **Decision**: The `events` table is **append-only**: no `UPDATE` or `DELETE` from application code. Soft-delete via `archived_at` timestamp. Hard-delete reserved for GDPR erasure (admin runbook operation only).
+- **Status**: Accepted
+- **Context**: Replay, auditability, and forensic workflows require immutable event history.
+- **Decision**: Keep `events` append-only from application code; use soft archive fields and narrowly scoped GDPR erasure workflows.
 - **Alternatives considered**:
-  - *Allow UPDATE for corrections*: Event correction is a valid use case, but it should be modeled as a new correction event, not an update to the original.
-  - *Full delete on retention expiry*: Simpler but loses auditability of what was pruned and when.
-- **Rationale**: Append-only ensures an immutable audit trail and enables safe replay. Soft-delete via `archived_at` gives operations visibility. Hard-delete for GDPR compliance is a rare, deliberate, documented operation.
-- **Open questions**: Should corrections be modeled as a new `CORRECTION` event type?
+  - Application-level mutable updates.
+  - Hard-delete retention routines.
+- **Rationale**: Immutability reduces silent data loss/regression risk and supports reliable replay semantics.
+- **Consequences**:
+  - Correction patterns must be modeled as new events, not in-place edits.
+  - Requires explicit retention/archival policy operations.
+- **Open questions**: Whether a first-class correction event type is needed later.
 - **Decided by**: Claude
+- **Related**: [Issue #3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3), [Issue #4](https://github.com/rainbowkillah/tiktok-live-platform/issues/4), [`docs/storage.md`](./storage.md)
 
----
-
-### D-008: Deployment — Docker Compose First
+### D-008: Deployment Baseline - Docker Compose First
 
 - **Date**: 2026-02-22
-- **Context**: The platform has multiple services (ingest, normalizer, storage-writer, api, ui) plus infrastructure (Postgres, Redis). Team needs a local-first development experience.
-- **Decision**: All services must be runnable via a single `docker-compose up` before any cloud deployment target is targeted.
+- **Status**: Accepted
+- **Context**: Multi-service architecture needs reproducible local orchestration before cloud-target specialization.
+- **Decision**: Require a complete local stack runnable via `docker-compose up` before prioritizing cloud deployment targets.
 - **Alternatives considered**:
-  - *Deploy to cloud from day one*: Fast for single-developer projects, but breaks local development for the multi-agent team.
-  - *Kubernetes from day one*: Powerful but enormous ops overhead for Phase 2.
-- **Rationale**: Non-negotiable per CLAUDE.md §3. Docker Compose ensures every developer has an identical, reproducible stack. Cloud targets (Cloudflare/Vercel/Railway) are added in Phase 4.
+  - Cloud-first deployment path.
+  - Kubernetes-first setup.
+- **Rationale**: Local reproducibility is lower-friction for contributors and supports deterministic testing/debugging.
+- **Consequences**:
+  - Initial effort favors local developer ergonomics over cloud optimizations.
+  - Service definitions must remain environment-portable.
 - **Open questions**: None.
-- **Decided by**: Claude (non-negotiable from CLAUDE.md)
-
----
+- **Decided by**: Claude
+- **Related**: [Issue #1](https://github.com/rainbowkillah/tiktok-live-platform/issues/1), [`docs/architecture.md`](./architecture.md), [`docs/test-plan.md`](./test-plan.md)
 
 ### D-009: Schema-First Development Gate
 
 - **Date**: 2026-02-22
-- **Context**: Multiple services depend on the UnifiedEvent schema. If the schema is undefined when implementation starts, services will make incompatible assumptions.
-- **Decision**: `unified-event.v1.schema.json` and `storage.md` must be **approved by all agents** (or at least not vetoed) before the normalizer or storage-writer are implemented.
+- **Status**: Accepted
+- **Context**: Parallel implementation across services risks contract drift without an approved schema baseline.
+- **Decision**: Require schema and storage contract approval before implementation of dependent services.
 - **Alternatives considered**:
-  - *Define schema incrementally as implementation proceeds*: Faster initial velocity but high risk of breaking changes.
-- **Rationale**: Non-negotiable per CLAUDE.md §3. Schema-first prevents costly rework and ensures the event contract is stable before code depends on it.
+  - Evolve schema during service implementation.
+- **Rationale**: Prevents incompatible assumptions and reduces expensive refactoring.
+- **Consequences**:
+  - Frontloads design review effort.
+  - Improves integration reliability across ingest, storage, API, and UI.
 - **Open questions**: None.
-- **Decided by**: Claude (non-negotiable from CLAUDE.md)
-
----
+- **Decided by**: Claude
+- **Related**: [Issue #2](https://github.com/rainbowkillah/tiktok-live-platform/issues/2), [Issue #3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3), [Issue #9](https://github.com/rainbowkillah/tiktok-live-platform/issues/9)
 
 ### D-010: `RAW` Passthrough for Unmapped Event Types
 
 - **Date**: 2026-02-22
-- **Context**: `tiktok-live-connector` exposes ~30 event types. Only ~10 are mapped to canonical UnifiedEvent types in v1. The rest would be silently dropped if not handled.
-- **Decision**: Unmapped event types are passed through as `eventType: "RAW"` with `payload.rawType` preserving the original type name and `payload.data` containing the raw decoded object.
+- **Status**: Accepted
+- **Context**: Connector exposes many events beyond v1 canonical mappings; dropping them would lose potentially valuable data.
+- **Decision**: Normalize unmapped messages as `eventType: RAW` with `payload.rawType` and `payload.data` preserved.
 - **Alternatives considered**:
-  - *Drop unmapped events*: Simplest, but loses data that may be useful later.
-  - *Fail the normalizer on unknown types*: Too strict; would break on TikTok protocol additions.
-  - *Map everything to specific types*: Premature; most event types have no immediate consumer.
-- **Rationale**: No data loss. RAW events are stored and queryable. As the schema matures, RAW types can be promoted to canonical types in later schema versions. The `rawType` field enables filtering.
-- **Open questions**: Should the rule engine support matching on `RAW` events by `rawType`?
+  - Drop unknown events.
+  - Fail normalization on unknown events.
+  - Force premature canonicalization.
+- **Rationale**: Preserves data fidelity while allowing incremental schema evolution.
+- **Consequences**:
+  - Downstream consumers must handle RAW events safely.
+  - Future schema versions can promote commonly observed RAW types.
+- **Open questions**: Should rule-engine matching on `payload.rawType` be first-class in v2?
 - **Decided by**: Claude
+- **Related**: [Issue #2](https://github.com/rainbowkillah/tiktok-live-platform/issues/2), [Issue #8](https://github.com/rainbowkillah/tiktok-live-platform/issues/8), [`docs/fixtures.md`](./fixtures.md)
 
 ---
 
@@ -175,13 +237,13 @@ Each entry:
 
 | Decision | Author | Reviewer | Status |
 |----------|--------|----------|--------|
-| D-001 | Claude | — | ⏳ Pending review |
-| D-002 | Claude | — | ⏳ Pending review |
-| D-003 | Claude | — | ⏳ Pending review |
-| D-004 | Claude | — | ⏳ Pending review |
-| D-005 | Claude | — | ⏳ Pending review |
-| D-006 | Claude | — | ⏳ Pending review |
-| D-007 | Claude | — | ⏳ Pending review |
-| D-008 | Claude | — | ⏳ Pending review |
-| D-009 | Claude | — | ⏳ Pending review |
-| D-010 | Claude | — | ⏳ Pending review |
+| D-001 | Claude | Pending | Accepted |
+| D-002 | Claude | Pending | Accepted |
+| D-003 | Claude | Pending | Accepted |
+| D-004 | Claude | Pending | Accepted |
+| D-005 | Claude | Pending | Accepted |
+| D-006 | Claude | Pending | Accepted |
+| D-007 | Claude | Pending | Accepted |
+| D-008 | Claude | Pending | Accepted |
+| D-009 | Claude | Pending | Accepted |
+| D-010 | Claude | Pending | Accepted |
