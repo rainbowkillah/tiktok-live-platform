@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo === Issue #$i ===:*)",
+      "Bash(echo === Issue #$i comments ===:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh project:*)",
+      "Bash(git clone:*)",
+      "Bash(cd /tmp/wiki && git add -A && git commit -m \"Phase 1 certification report: conditionally certified with governance corrections required\" && git push 2>&1)"
+    ]
+  }
+}
