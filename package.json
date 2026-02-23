@@ -4,7 +4,7 @@
     "audit": "node scripts/audit.js"
   },
   "dependencies": {
-    "@sentry/node": "^10.39.0"
+    "@sentry/node": "9.17.0"
   },
   "devDependencies": {
     "ajv": "^8.18.0",
