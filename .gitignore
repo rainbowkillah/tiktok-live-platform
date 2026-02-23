@@ -12,3 +12,4 @@ docker-compose.override.yml
 secrets/
 .vscode/settings.json
 .github/ISSUE_TEMPLATE/deliver.yaml
+docs/prompts/deliver-prompt.md
