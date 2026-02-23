@@ -1,34 +1,15 @@
 /**
  * TypeScript types for UnifiedEvent v1.
  *
- * Aligned with docs/contracts/unified-event.v1.schema.json.
- * Schema version: 1.0.0  |  JSON Schema draft-07
+ * Source of truth:
+ * - docs/contracts/unified-event.v1.schema.json
+ *
+ * Maintenance note:
+ * - Runtime validation stays in JSON Schema + AJV.
+ * - This file provides compile-time safety and discriminated unions.
  */
 
-// ---------------------------------------------------------------------------
-// Canonical event type enum
-// ---------------------------------------------------------------------------
-
-export type EventType =
-  | 'CHAT'
-  | 'GIFT'
-  | 'LIKE'
-  | 'FOLLOW'
-  | 'SHARE'
-  | 'JOIN'
-  | 'SUBSCRIBE'
-  | 'EMOTE'
-  | 'BATTLE'
-  | 'CONNECTED'
-  | 'DISCONNECTED'
-  | 'ERROR'
-  | 'RAW';
-
-// ---------------------------------------------------------------------------
-// Trigger ID mapping (stable numeric IDs used by the rule engine)
-// ---------------------------------------------------------------------------
-
-export const TRIGGER_ID: Record<EventType, number> = {
+export const TRIGGER_ID = {
   CHAT: 1,
   GIFT: 2,
   LIKE: 3,
@@ -42,11 +23,10 @@ export const TRIGGER_ID: Record<EventType, number> = {
   DISCONNECTED: 11,
   ERROR: 12,
   RAW: 13,
-};
+} as const;
 
-// ---------------------------------------------------------------------------
-// User sub-object
-// ---------------------------------------------------------------------------
+export type EventType = keyof typeof TRIGGER_ID;
+export type TriggerId = (typeof TRIGGER_ID)[EventType];
 
 export interface UnifiedUser {
   /** TikTok numeric user ID (stable). Maps to placeholder {userId}. */
@@ -66,10 +46,6 @@ export interface UnifiedUser {
   /** Team member level (0 if not a team member). */
   teamMemberLevel?: number;
 }
-
-// ---------------------------------------------------------------------------
-// Payload definitions
-// ---------------------------------------------------------------------------
 
 export interface ChatPayload {
   /** The chat message text. Maps to placeholder {message}. */
@@ -91,7 +67,7 @@ export interface GiftPayload {
   giftName: string;
   /** Number of gifts sent in this event. Maps to placeholder {giftCount}. */
   giftCount: number;
-  /** Total coin value (giftCount × unitPrice). Maps to placeholder {coins}. */
+  /** Total coin value (giftCount x unitPrice). Maps to placeholder {coins}. */
   coins: number;
   /** Diamond value (streamer earnings). Typically coins / 2. */
   diamondCount?: number;
@@ -112,13 +88,11 @@ export interface LikePayload {
   totalLikeCount: number;
 }
 
-/** FOLLOW payload — carries the social sub-type discriminator. */
 export interface FollowPayload {
   /** Social sub-type discriminator sourced from WebcastSocialMessage.displayType. */
   displayType: 'pm_mt_msg_viewer_follow';
 }
 
-/** SHARE payload — carries the social sub-type discriminator. */
 export interface SharePayload {
   /** Social sub-type discriminator sourced from WebcastSocialMessage.displayType. */
   displayType: 'pm_mt_msg_viewer_share';
@@ -195,41 +169,32 @@ export interface RawPayload {
   data?: Record<string, unknown>;
 }
 
-// ---------------------------------------------------------------------------
-// Discriminated union for typed event payload
-// ---------------------------------------------------------------------------
+export interface PayloadByEventType {
+  CHAT: ChatPayload;
+  GIFT: GiftPayload;
+  LIKE: LikePayload;
+  FOLLOW: FollowPayload;
+  SHARE: SharePayload;
+  JOIN: JoinPayload;
+  SUBSCRIBE: SubscribePayload;
+  EMOTE: EmotePayload;
+  BATTLE: BattlePayload;
+  CONNECTED: ConnectedPayload;
+  DISCONNECTED: DisconnectedPayload;
+  ERROR: ErrorPayload;
+  RAW: RawPayload;
+}
 
-export type UnifiedPayload =
-  | ChatPayload
-  | GiftPayload
-  | LikePayload
-  | FollowPayload
-  | SharePayload
-  | JoinPayload
-  | SubscribePayload
-  | EmotePayload
-  | BattlePayload
-  | ConnectedPayload
-  | DisconnectedPayload
-  | ErrorPayload
-  | RawPayload;
+export type UnifiedPayload = PayloadByEventType[EventType];
 
-// ---------------------------------------------------------------------------
-// Core UnifiedEvent envelope
-// ---------------------------------------------------------------------------
-
-export interface UnifiedEvent {
-  /** Schema version — always '1' for v1 events. */
+export interface UnifiedEventBase {
+  /** Schema version; always '1' for v1 events. */
   schemaVersion: '1';
   /**
    * Dedupe key: SHA-256 hex digest of
    * (streamId + ':' + sessionId + ':' + seqNo + ':' + rawType).
    */
   eventId: string;
-  /** Canonical event type. */
-  eventType: EventType;
-  /** Numeric trigger ID for the rule engine dispatch path. */
-  triggerId: number;
   /** TikTok room ID (numeric string). */
   streamId: string;
   /** Internal session UUID. One session = one connect attempt or replay run. */
@@ -244,42 +209,17 @@ export interface UnifiedEvent {
   seqNo?: number;
   /** TikTok user who triggered this event. */
   user: UnifiedUser;
-  /** Event-type-specific data. */
-  payload?: UnifiedPayload;
 }
 
-// ---------------------------------------------------------------------------
-// Typed helper — narrow payload by event type
-// ---------------------------------------------------------------------------
+export type UnifiedEvent = {
+  [T in EventType]: UnifiedEventBase & {
+    /** Canonical event type. */
+    eventType: T;
+    /** Numeric trigger ID for rule engine dispatch. */
+    triggerId: (typeof TRIGGER_ID)[T];
+    /** Event-specific payload shape (optional per schema). */
+    payload?: PayloadByEventType[T];
+  };
+}[EventType];
 
-export type EventOf<T extends EventType> = UnifiedEvent & {
-  eventType: T;
-  triggerId: (typeof TRIGGER_ID)[T];
-  payload: T extends 'CHAT'
-    ? ChatPayload
-    : T extends 'GIFT'
-      ? GiftPayload
-      : T extends 'LIKE'
-        ? LikePayload
-        : T extends 'FOLLOW'
-          ? FollowPayload
-          : T extends 'SHARE'
-            ? SharePayload
-            : T extends 'JOIN'
-              ? JoinPayload
-              : T extends 'SUBSCRIBE'
-                ? SubscribePayload
-                : T extends 'EMOTE'
-                  ? EmotePayload
-                  : T extends 'BATTLE'
-                    ? BattlePayload
-                    : T extends 'CONNECTED'
-                      ? ConnectedPayload
-                      : T extends 'DISCONNECTED'
-                        ? DisconnectedPayload
-                        : T extends 'ERROR'
-                          ? ErrorPayload
-                          : T extends 'RAW'
-                            ? RawPayload
-                            : never;
-};
+export type EventOf<T extends EventType> = Extract<UnifiedEvent, { eventType: T }>;
