@@ -15,7 +15,7 @@ See [decision-log.md](decision-log.md) for all storage choices, alternatives con
 
 1. Should `events` use Postgres table partitioning by `session_id` or `timestamp` for performance at scale?
 2. Is a separate `aggregates` table worth the added complexity for Phase 2, or is it deferred to Phase 4?
-3. Should `users` table pseudonymize data after the retention period, or hard-delete?
+3. ~~Should `users` table pseudonymize data after the retention period, or hard-delete?~~ **[RESOLVED]** Pseudonymize: null PII fields (`display_name`, `avatar_url`) and replace `tiktok_user_id` / `unique_id` with SHA-256 hashes. Hard-delete risks breaking `events.user_id` references and audit history. See §4.1 Step 6 and §4.2.
 
 ## Validation Checklist
 
@@ -295,22 +295,63 @@ Normalizer → Storage Writer → API → UI
 
 ### 4.1 Pruning Job
 
-A scheduled job (cron or pg_cron) runs daily:
+A scheduled job (cron or pg_cron) runs daily at 02:00 UTC. All steps run in order within a single transaction or as sequenced statements to respect FK dependencies.
 
 ```sql
--- Soft-delete expired events
+-- ============================================================
+-- DAILY PRUNING JOB  (run via cron or pg_cron at 02:00 UTC)
+-- Requires: pgcrypto extension for user pseudonymization
+-- ============================================================
+
+-- Step 1: Soft-delete expired events (90-day retention)
 UPDATE events
 SET archived_at = NOW()
 WHERE timestamp < NOW() - INTERVAL '90 days'
   AND archived_at IS NULL;
 
--- Hard-delete events that have been soft-deleted for 30+ days
+-- Step 2: Hard-delete events that have been soft-deleted for 30+ days
 DELETE FROM events
 WHERE archived_at < NOW() - INTERVAL '30 days';
 
--- Similarly for actions_log, streams, sessions, and users
--- UPDATE actions_log SET ...
+-- Step 3: Hard-delete old actions_log rows (90-day retention, no soft-delete)
+DELETE FROM actions_log
+WHERE executed_at < NOW() - INTERVAL '90 days';
+
+-- Step 4: Hard-delete old sessions
+--   Guard: only delete after all referenced events are gone.
+--   events max lifetime = 90d soft-delete + 30d grace = 120d.
+--   sessions retention = 1 year — safe ordering gap.
+DELETE FROM sessions
+WHERE created_at < NOW() - INTERVAL '1 year'
+  AND NOT EXISTS (
+    SELECT 1 FROM events WHERE events.session_id = sessions.id
+  );
+
+-- Step 5: Hard-delete old streams
+--   Guard: only delete after all referenced sessions are gone.
+DELETE FROM streams
+WHERE created_at < NOW() - INTERVAL '1 year'
+  AND NOT EXISTS (
+    SELECT 1 FROM sessions WHERE sessions.stream_id = streams.id
+  );
+
+-- Step 6: Pseudonymize inactive users (1-year inactivity threshold)
+--   Uses meta->>'pseudonymizedAt' as an idempotency guard to prevent
+--   re-hashing already-pseudonymized rows.
+--   Requires pgcrypto: CREATE EXTENSION IF NOT EXISTS pgcrypto;
+UPDATE users
+SET display_name   = NULL,
+    avatar_url     = NULL,
+    unique_id      = encode(digest(unique_id,      'sha256'), 'hex'),
+    tiktok_user_id = encode(digest(tiktok_user_id, 'sha256'), 'hex'),
+    meta           = meta || jsonb_build_object('pseudonymizedAt', NOW())
+WHERE last_seen < NOW() - INTERVAL '1 year'
+  AND (meta->>'pseudonymizedAt') IS NULL;
 ```
+
+**Retention ordering note**: Steps 1–3 (events and actions_log at 90 days) always run before steps 4–5 (sessions and streams at 1 year), ensuring FK references from `events` and `actions_log` to `sessions` and `streams` are cleared before parent rows are deleted.
+
+**Configurable intervals**: All intervals above correspond to the env vars in §4. In production, substitute `INTERVAL '90 days'` with a parameterized value from `EVENT_RETENTION_DAYS` / `ACTIONS_LOG_RETENTION_DAYS`, and `INTERVAL '1 year'` with `SESSION_RETENTION_DAYS` / `STREAM_RETENTION_DAYS` / `USER_RETENTION_DAYS`.
 
 ### 4.2 Privacy
 
