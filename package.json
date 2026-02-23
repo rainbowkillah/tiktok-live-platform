@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "validate-fixtures": "node src/validate-fixtures.js"
+    "validate-fixtures": "node src/validate-fixtures.js",
+    "audit": "node scripts/audit.js"
   },
   "dependencies": {
     "@sentry/node": "^10.39.0"
