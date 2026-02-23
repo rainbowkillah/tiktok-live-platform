@@ -14,16 +14,16 @@
 - **D-UI-003: Distinct Views for Streamer vs. Moderator**: The Streamer and Moderator experiences will be separate, routed views (e.g., `/dashboard` and `/moderation`). They have different primary goals (overview vs. action) and should not be combined into a single complex interface.
 - **D-UI-004: Command Palette for Quick Actions**: A global command palette (e.g., triggered by `Ctrl+K`) will be implemented to allow power users (especially moderators) to quickly jump to users, trigger actions, or change filters without using the mouse.
 - **D-UI-005: SSE for Live Events**: The primary mechanism for receiving live events in the UI will be Server-Sent Events (SSE) from the `/streams/:streamId/events` endpoint defined in `architecture.md`. WebSockets will be used for bidirectional communication if needed (e.g., for moderation actions).
+- **D-UI-006: RBAC-Gated UI Components**: Moderators can view the rule list and test rules, but cannot create or edit them. Streamers have full access. Viewers have read-only access to limited analytics. (Resolves Open Question 1).
 
 ---
 
 ## Open Questions
 
-1. **Moderator Permissions (RBAC)**: What is the precise permission model for moderators? Can they create/edit rules, or only view/test them? Can they see the analytics dashboard? This directly impacts which UI components are visible or disabled for the moderator role. (Related to Threat E-01).
-2. **Mobile/Responsive Strategy**: Is a full-featured mobile experience a requirement for Phase 2, or is a desktop-first approach sufficient? The high-density views (especially for moderation) may be challenging on small screens.
-3. **"Quick-Actions" Definition**: What are the specific quick-actions a moderator needs for a user? (e.g., "View user chat history", "Add private note", "Copy User ID", "Timeout user (via webhook)", "Ban user (via webhook)"). This needs to be defined in collaboration with Codex to ensure API support.
-4. **Analytics Visualization Performance**: How should the analytics dashboard handle potentially millions of events for a long stream? Should we rely on pre-computed aggregates from the `stream_aggregates` table (Phase 4), or will the API provide on-the-fly aggregation?
-5. **Theming and Customization**: Should the UI support theming (light/dark mode) or custom layouts? For Phase 2, this is out of scope, but it's a consideration for the future.
+1. **Mobile/Responsive Strategy**: Is a full-featured mobile experience a requirement for Phase 2, or is a desktop-first approach sufficient? The high-density views (especially for moderation) may be challenging on small screens.
+2. **"Quick-Actions" Definition**: What are the specific quick-actions a moderator needs for a user? (e.g., "View user chat history", "Add private note", "Copy User ID", "Timeout user (via webhook)", "Ban user (via webhook)"). This needs to be defined in collaboration with Codex to ensure API support.
+3. **Analytics Visualization Performance**: How should the analytics dashboard handle potentially millions of events for a long stream? Should we rely on pre-computed aggregates from the `stream_aggregates` table (Phase 4), or will the API provide on-the-fly aggregation?
+4. **Theming and Customization**: Should the UI support theming (light/dark mode) or custom layouts? For Phase 2, this is out of scope, but it's a consideration for the future.
 
 ---
 
@@ -66,6 +66,19 @@ The Web UI is a single-page application (SPA) built with a modern framework like
 /analytics              - Analytics dashboard
 /sessions/:sessionId    - View a past session's events and details
 ```
+
+### 1.3. Role-Based Access Control (RBAC)
+
+The UI dynamically adapts to the authenticated user's role (defined in [docs/rbac.md](rbac.md)).
+
+| Feature | STREAMER | MODERATOR | VIEWER |
+|---------|:---:|:---:|:---:|
+| **Live Event Feed** | ✅ | ✅ | ❌ |
+| **Moderation Panel** | ✅ | ✅ | ❌ |
+| **Rule Editor (Create/Edit)**| ✅ | ❌ | ❌ |
+| **Rule List (View/Test)** | ✅ | ✅ | ❌ |
+| **Analytics Dashboard** | Full | Full | Restricted |
+| **Session Replay Control** | ✅ | ❌ | ❌ |
 
 ---
 

@@ -13,7 +13,15 @@
 
 ### Last 10 issues and changes
 
-1. `#10` - `docs/decision-log.md` - **OPEN**
+1. `#18` - `docs/rbac.md` - **OPEN** (implemented locally)
+   - GitHub URL: <https://github.com/rainbowkillah/tiktok-live-platform/issues/18>
+   - Local repo change:
+     - Created `docs/rbac.md` defining roles (`STREAMER`, `MODERATOR`, `VIEWER`), JWT strategy, and stream-scoping.
+     - Updated `docs/architecture.md` with RBAC-informed API table and auth requirements.
+     - Updated `docs/ui-flows.md` with role-gated UI component matrix and resolved Open Question 1.
+     - Updated `docs/threat-model.md` resolving auth/RBAC-related threats (S-02, S-03, I-04, E-01, E-02).
+
+2. `#10` - `docs/decision-log.md` - **OPEN**
    - GitHub URL: <https://github.com/rainbowkillah/tiktok-live-platform/issues/10>
    - Local repo change: `docs/decision-log.md` is present and modified with Phase 1 ADR entries (`D-001` to `D-010`).
 

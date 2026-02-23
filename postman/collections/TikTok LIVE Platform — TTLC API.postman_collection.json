@@ -1,0 +1,66 @@
+{
+  "info": {
+    "_postman_id": "72967a11-2a8d-4aae-810e-2325c81ae3a0",
+    "name": "TikTok LIVE Platform — TTLC API",
+    "description": "Complete API test collection for the TikTok LIVE Platform. Covers all public endpoints: Health, Events (SSE + historical), Sessions (replay), Rules (CRUD), and Storage queries.\n\nOwner Agent: Copilot (QA, CI/CD & Developer Experience Lead)\nDepends on: docs/architecture.md, docs/contracts/unified-event.v1.schema.json\nGitHub Issue: #7\n\nEnvironment variables required:\n- base_url: API base URL (e.g. http://localhost:3000)\n- stream_id: Test stream ID (e.g. 7123456789)\n- session_id: Test session ID (e.g. 550e8400-e29b-41d4-a716-446655440001)\n- rule_id: Rule UUID (populated by 'Create Rule' request)\n- session_token: Bearer token for authenticated endpoints (optional in dev)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [],
+      "id": "82f84378-5e5a-4539-86ba-d8c5215911f8",
+      "description": "Health and readiness checks for the platform."
+    },
+    {
+      "name": "Events",
+      "item": [],
+      "id": "f1ee9627-d4b1-4f27-b216-8a8df1809229",
+      "description": "Live SSE feed and historical event queries. Stream events are UnifiedEvent v1 objects validated against docs/contracts/unified-event.v1.schema.json."
+    },
+    {
+      "name": "Sessions",
+      "item": [],
+      "id": "e4b62214-c195-46eb-82fc-ff1a5e87dfa5",
+      "description": "Session management and replay controls."
+    },
+    {
+      "name": "Rules",
+      "item": [],
+      "id": "bf61ca78-3ee8-4c98-87c0-4b5930ff5c55",
+      "description": "CRUD operations for the rule engine. Rules define conditions on UnifiedEvents and actions (overlay, webhook, log) to trigger when conditions are met."
+    },
+    {
+      "name": "Storage",
+      "item": [],
+      "id": "268be5b1-9112-4965-855b-3ce42934b6e3",
+      "description": "Direct storage queries for streams and users. These endpoints expose data from the Postgres `streams` and `users` tables."
+    }
+  ],
+  "variable": [
+    {
+      "id": "f815c83d-b238-42c7-9cc3-ac21e8ccebf8",
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "description": "API base URL. Override per environment."
+    },
+    {
+      "id": "2e7bda14-d4eb-4a54-8e23-876bd677bd47",
+      "key": "stream_id",
+      "value": "7123456789",
+      "description": "Test stream ID (reserved for testing)."
+    },
+    {
+      "id": "82ef72dd-77d5-43d7-8700-d0290c10454f",
+      "key": "session_id",
+      "value": "550e8400-e29b-41d4-a716-446655440001",
+      "description": "Test session ID (reserved for testing)."
+    },
+    {
+      "id": "d83a281f-bf50-4b04-b6f9-13348da24eee",
+      "key": "rule_id",
+      "value": "",
+      "description": "Auto-populated by the 'Create Rule' request test script."
+    }
+  ]
+}

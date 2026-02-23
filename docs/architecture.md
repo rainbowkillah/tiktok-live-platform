@@ -169,20 +169,22 @@ The ingestion layer wraps [`tiktok-live-connector`](https://www.npmjs.com/packag
 - Exposes WebSocket endpoint for bidirectional UI communication
 - Provides session replay trigger endpoint (`POST /sessions/:id/replay`) (requires authentication)
 - Serves static Web UI assets (or delegates to separate Nginx container)
+- Enforces Role-Based Access Control (RBAC) on all sensitive endpoints (see [docs/rbac.md](rbac.md))
 - Enforces API rate limits on all endpoints to mitigate DoS (Denial of Service) attacks
 
 **Key endpoints (planned):**
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/streams/:id/events` | SSE live feed (Authenticated) |
-| `GET` | `/sessions/:id/events` | Historical event query |
-| `POST` | `/sessions/:id/replay` | Trigger replay (Authenticated) |
-| `GET` | `/rules` | List rules |
-| `POST` | `/rules` | Create rule (Authenticated) |
-| `PUT` | `/rules/:id` | Update rule (Authenticated) |
-| `DELETE` | `/rules/:id` | Delete rule (Authenticated) |
-| `GET` | `/health` | Health check |
+| Method | Path | Description | Auth / Role |
+|--------|------|-------------|-------------|
+| `GET` | `/streams/:id/events` | SSE live feed | `MODERATOR` |
+| `GET` | `/sessions/:id/events` | Historical event query | `VIEWER` |
+| `POST` | `/sessions/:id/replay` | Trigger replay | `STREAMER` |
+| `GET` | `/rules` | List rules | `MODERATOR` |
+| `POST` | `/rules` | Create rule | `STREAMER` |
+| `PUT` | `/rules/:id` | Update rule | `STREAMER` |
+| `DELETE` | `/rules/:id` | Delete rule | `STREAMER` |
+| `POST` | `/rules/test` | Test a rule execution | `MODERATOR` |
+| `GET` | `/health` | Health check | `NONE` |
 
 ---
 
