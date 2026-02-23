@@ -1,0 +1,385 @@
+name: Phase 1 Certification (Milestone 0)
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    env:
+      # Project v2 target
+      PROJECT_OWNER: rainbowkillah
+      PROJECT_NUMBER: 15
+      STATUS_FIELD_NAME: Status
+      STATUS_GATED: Gated
+
+      # Repo context
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+
+      # Token for Projects automation (classic PAT)
+      GH_TOKEN: ${{ secrets.PROJECTS_PAT }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine phase from branch name
+        id: phase
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.head_ref }}"
+          if [[ "$BRANCH" =~ ^phase([1-4])\/ ]]; then
+            echo "phase=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "phase=0" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Branch: $BRANCH"
+
+      - name: Run Phase 1 Certification checks (generate report)
+        id: cert
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REPORT="certification-report.md"
+          PASS=1
+
+          echo "# Milestone 0 – Phase 1 Certification Report" > "$REPORT"
+          echo "" >> "$REPORT"
+          echo "**Repo:** ${REPO}" >> "$REPORT"
+          echo "**PR:** #${PR_NUMBER}" >> "$REPORT"
+          echo "**Head:** ${{ github.head_ref }}" >> "$REPORT"
+          echo "**Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$REPORT"
+          echo "" >> "$REPORT"
+
+          echo "## Artifact Checklist" >> "$REPORT"
+          echo "" >> "$REPORT"
+          echo "| Artifact | Exists | Non-empty | Notes |" >> "$REPORT"
+          echo "|---|---:|---:|---|" >> "$REPORT"
+
+          required=(
+            "docs/architecture.md"
+            "docs/contracts/unified-event.v1.schema.json"
+            "src/types/unified-event.ts"
+            "docs/storage.md"
+            "docs/threat-model.md"
+            "docs/ui-flows.md"
+            "docs/test-plan.md"
+            "docs/fixtures.md"
+            "postman/ttlc.postman_collection.json"
+            "docs/decision-log.md"
+          )
+
+          for f in "${required[@]}"; do
+            exists="❌"
+            nonempty="❌"
+            notes=""
+            if [[ -f "$f" ]]; then
+              exists="✅"
+              if [[ -s "$f" ]]; then
+                nonempty="✅"
+              else
+                PASS=0
+                notes="File is empty"
+              fi
+            else
+              PASS=0
+              notes="Missing"
+            fi
+            echo "| \`$f\` | $exists | $nonempty | $notes |" >> "$REPORT"
+          done
+
+          echo "" >> "$REPORT"
+          echo "## Contract Integrity (UnifiedEvent v1)" >> "$REPORT"
+
+          schema="docs/contracts/unified-event.v1.schema.json"
+          ts="src/types/unified-event.ts"
+
+          required_types=(CHAT GIFT LIKE FOLLOW SHARE JOIN SUBSCRIBE EMOTE BATTLE CONNECTED DISCONNECTED ERROR)
+
+          if [[ -f "$schema" ]]; then
+            if jq empty "$schema" >/dev/null 2>&1; then
+              echo "- ✅ Schema is valid JSON" >> "$REPORT"
+              for t in "${required_types[@]}"; do
+                if jq -e --arg T "$t" 'tostring | test($T)' "$schema" >/dev/null 2>&1; then
+                  echo "- ✅ Contains event type: \`$t\`" >> "$REPORT"
+                else
+                  echo "- ❌ Missing event type: \`$t\`" >> "$REPORT"
+                  PASS=0
+                fi
+              done
+
+              # Trigger-ID mapping check (basic heuristic)
+              if jq -e 'tostring | test("trigger|Trigger|triggerId|trigger_id|mapping|11\\s*=\\s*chat|3\\s*=\\s*gift|9\\s*=\\s*follow"; "i")' "$schema" >/dev/null 2>&1; then
+                echo "- ✅ Trigger-ID mapping appears documented in schema" >> "$REPORT"
+              else
+                echo "- ❌ Trigger-ID mapping not detected in schema (ensure explicit mapping exists)" >> "$REPORT"
+                PASS=0
+              fi
+
+              # Placeholder tokens check (basic heuristic)
+              if jq -e 'tostring | test("\\{username\\}|\\{displayName\\}|\\{giftName\\}|\\{giftCount\\}|\\{coins\\}|\\{message\\}|\\{eventType\\}|\\{timestamp\\}|\\{streamId\\}")' "$schema" >/dev/null 2>&1; then
+                echo "- ✅ Placeholder tokens appear documented" >> "$REPORT"
+              else
+                echo "- ❌ Placeholder tokens not detected (must document curly-brace placeholders)" >> "$REPORT"
+                PASS=0
+              fi
+            else
+              echo "- ❌ Schema is not valid JSON" >> "$REPORT"
+              PASS=0
+            fi
+          else
+            echo "- ❌ Schema file missing" >> "$REPORT"
+            PASS=0
+          fi
+
+          echo "" >> "$REPORT"
+          echo "## TypeScript Alignment (src/types/unified-event.ts)" >> "$REPORT"
+          if [[ -f "$ts" ]]; then
+            for t in "${required_types[@]}"; do
+              if rg -n "\b${t}\b" "$ts" >/dev/null 2>&1; then
+                echo "- ✅ TS mentions: \`$t\`" >> "$REPORT"
+              else
+                echo "- ❌ TS missing: \`$t\` (possible contract drift)" >> "$REPORT"
+                PASS=0
+              fi
+            done
+          else
+            echo "- ❌ TS types file missing" >> "$REPORT"
+            PASS=0
+          fi
+
+          echo "" >> "$REPORT"
+          echo "## Replayability" >> "$REPORT"
+          if rg -n "replay" docs/architecture.md docs/storage.md docs/test-plan.md docs/fixtures.md >/dev/null 2>&1; then
+            echo "- ✅ Replay is referenced across docs" >> "$REPORT"
+          else
+            echo "- ❌ Replay strategy not clearly referenced (must be explicitly designed/documented)" >> "$REPORT"
+            PASS=0
+          fi
+
+          echo "" >> "$REPORT"
+          echo "## Security & Threat Model" >> "$REPORT"
+          if [[ -f "docs/threat-model.md" ]] && rg -n "retention|privacy|secrets|token|jwt|rate" docs/threat-model.md >/dev/null 2>&1; then
+            echo "- ✅ Threat model covers key areas (retention/privacy/secrets/rate limits)" >> "$REPORT"
+          else
+            echo "- ❌ Threat model appears weak/missing key topics (retention/privacy/secrets/rate limits)" >> "$REPORT"
+            PASS=0
+          fi
+
+          echo "" >> "$REPORT"
+          echo "## Testability" >> "$REPORT"
+          if [[ -f "docs/test-plan.md" ]] && rg -n "unit|integration|end-to-end|e2e|failure|injection|replay" docs/test-plan.md >/dev/null 2>&1; then
+            echo "- ✅ Test plan includes core categories (unit/integration/e2e/failure/replay)" >> "$REPORT"
+          else
+            echo "- ❌ Test plan missing core categories or too vague" >> "$REPORT"
+            PASS=0
+          fi
+
+          echo "" >> "$REPORT"
+          echo "## Decision Log Integrity" >> "$REPORT"
+          if [[ -f "docs/decision-log.md" ]] && rg -n "Decision|Alternatives|Rationale|Consequences|Open questions|Risk" docs/decision-log.md >/dev/null 2>&1; then
+            echo "- ✅ Decision log has structure/content" >> "$REPORT"
+          else
+            echo "- ❌ Decision log appears empty or missing structure (decision + alternatives + rationale)" >> "$REPORT"
+            PASS=0
+          fi
+
+          echo "" >> "$REPORT"
+          echo "## Final Verdict" >> "$REPORT"
+          if [[ "$PASS" -eq 1 ]]; then
+            echo "" >> "$REPORT"
+            echo "**✅ CERTIFIED: Phase 1 (Milestone 0) meets required artifacts and documentation gates.**" >> "$REPORT"
+            echo "cert_pass=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "" >> "$REPORT"
+            echo "**❌ NOT CERTIFIED: Phase 1 requirements are incomplete or failing quality gates.**" >> "$REPORT"
+            echo "cert_pass=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Certification Report (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-certification-report
+          path: certification-report.md
+          if-no-files-found: error
+
+      - name: Post PR comment (PASS/FAIL)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pass = ("${{ steps.cert.outputs.cert_pass }}" === "true");
+            const report = fs.readFileSync('certification-report.md', 'utf8');
+
+            const header = pass
+              ? "## CERTIFICATION PASS ✅ (Milestone 0 – Phase 1)"
+              : "## CERTIFICATION FAIL ❌ (Milestone 0 – Phase 1)";
+
+            // Keep comment size sane; include full report as artifact
+            const snippet = report.length > 6000 ? report.slice(0, 6000) + "\n\n…(truncated; see Actions artifact for full report)" : report;
+
+            const body = `${header}\n\n${snippet}\n\n**Full report:** available as the workflow artifact \`phase1-certification-report\`.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body
+            });
+
+      - name: Auto-set linked issues to Gated (on certification failure)
+        if: github.event_name == 'pull_request' && steps.cert.outputs.cert_pass != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::PROJECTS_PAT missing; cannot set Project status to Gated."
+            exit 0
+          fi
+
+          # Extract linked issue numbers from PR title/body
+          PR_JSON="$(gh api repos/${REPO}/pulls/${PR_NUMBER})"
+          TEXT="$(echo "$PR_JSON" | jq -r '.title + "\n\n" + (.body // "")')"
+          ISSUE_NUMBERS="$(echo "$TEXT" | rg -o "#\d+" | rg -o "\d+" | sort -u | tr '\n' ',' | sed 's/,$//')"
+
+          if [ -z "$ISSUE_NUMBERS" ]; then
+            echo "No linked issues found; nothing to set to Gated."
+            exit 0
+          fi
+
+          echo "Linked issues: $ISSUE_NUMBERS"
+
+          # Fetch project + status field options
+          QUERY='
+          query($login:String!, $number:Int!, $fieldName:String!) {
+            user(login:$login) {
+              projectV2(number:$number) {
+                id
+                field(name:$fieldName) {
+                  ... on ProjectV2SingleSelectField {
+                    id
+                    options { id name }
+                  }
+                }
+              }
+            }
+          }'
+
+          DATA="$(gh api graphql \
+            -f query="$QUERY" \
+            -f login="$PROJECT_OWNER" \
+            -F number="$PROJECT_NUMBER" \
+            -f fieldName="$STATUS_FIELD_NAME")"
+
+          PROJECT_ID="$(echo "$DATA" | jq -r '.data.user.projectV2.id')"
+          FIELD_ID="$(echo "$DATA" | jq -r '.data.user.projectV2.field.id')"
+          OPTION_ID="$(echo "$DATA" | jq -r --arg name "$STATUS_GATED" '.data.user.projectV2.field.options[] | select(.name==$name) | .id' | head -n 1)"
+
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "null" ] || [ -z "$FIELD_ID" ] || [ "$FIELD_ID" = "null" ] || [ -z "$OPTION_ID" ] || [ "$OPTION_ID" = "null" ]; then
+            echo "::error::Could not resolve Project/Field/Option IDs for Status=Gated. Check Project #15 configuration."
+            echo "Available options:"
+            echo "$DATA" | jq -r '.data.user.projectV2.field.options[].name'
+            exit 1
+          fi
+
+          IFS=',' read -ra NUMS <<< "$ISSUE_NUMBERS"
+
+          for N in "${NUMS[@]}"; do
+            N="$(echo "$N" | xargs)"
+            echo "---- Setting issue #$N to Gated"
+
+            ISSUE_QUERY='
+            query($owner:String!, $name:String!, $number:Int!) {
+              repository(owner:$owner, name:$name) {
+                issue(number:$number) { id url }
+              }
+            }'
+
+            OWNER="$(echo "$REPO" | cut -d/ -f1)"
+            NAME="$(echo "$REPO" | cut -d/ -f2)"
+
+            ISSUE_DATA="$(gh api graphql \
+              -f query="$ISSUE_QUERY" \
+              -f owner="$OWNER" \
+              -f name="$NAME" \
+              -F number="$N")"
+
+            CONTENT_ID="$(echo "$ISSUE_DATA" | jq -r '.data.repository.issue.id')"
+            if [ -z "$CONTENT_ID" ] || [ "$CONTENT_ID" = "null" ]; then
+              echo "::warning::Issue #$N not found in $REPO; skipping."
+              continue
+            fi
+
+            # Add issue to project (if not already there)
+            ADD_MUTATION='
+            mutation($projectId:ID!, $contentId:ID!) {
+              addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) {
+                item { id }
+              }
+            }'
+
+            ADD_RES="$(gh api graphql \
+              -f query="$ADD_MUTATION" \
+              -f projectId="$PROJECT_ID" \
+              -f contentId="$CONTENT_ID" 2>/dev/null || true)"
+
+            ITEM_ID="$(echo "$ADD_RES" | jq -r '.data.addProjectV2ItemById.item.id' 2>/dev/null || echo "")"
+
+            # If already exists, look it up
+            if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
+              LOOKUP='
+              query($projectId:ID!) {
+                node(id:$projectId) {
+                  ... on ProjectV2 {
+                    items(first:200) {
+                      nodes {
+                        id
+                        content { ... on Issue { id } }
+                      }
+                    }
+                  }
+                }
+              }'
+              ITEMS="$(gh api graphql -f query="$LOOKUP" -f projectId="$PROJECT_ID")"
+              ITEM_ID="$(echo "$ITEMS" | jq -r --arg cid "$CONTENT_ID" '.data.node.items.nodes[] | select(.content.id==$cid) | .id' | head -n 1)"
+            fi
+
+            if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
+              echo "::error::Could not resolve Project item ID for issue #$N."
+              exit 1
+            fi
+
+            UPDATE_MUTATION='
+            mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {
+              updateProjectV2ItemFieldValue(input:{
+                projectId:$projectId,
+                itemId:$itemId,
+                fieldId:$fieldId,
+                value:{ singleSelectOptionId:$optionId }
+              }) { projectV2Item { id } }
+            }'
+
+            gh api graphql \
+              -f query="$UPDATE_MUTATION" \
+              -f projectId="$PROJECT_ID" \
+              -f itemId="$ITEM_ID" \
+              -f fieldId="$FIELD_ID" \
+              -f optionId="$OPTION_ID" >/dev/null
+
+            echo "✅ Issue #$N set to Status=Gated"
+          done
+
+      - name: Fail the workflow if not certified (enforces gating)
+        if: steps.cert.outputs.cert_pass != 'true'
+        run: |
+          echo "Certification failed. Blocking progression."
+          exit 1
