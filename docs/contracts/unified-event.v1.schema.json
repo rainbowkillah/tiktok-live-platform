@@ -8,7 +8,7 @@
 
   "_meta": {
     "owner": "Claude (Program Lead & Systems Architect)",
-    "github_issue": "https://github.com/rainbowkillah/crispy-enigma/issues/242",
+    "github_issue": "https://github.com/rainbowkillah/tiktok-live-platform/issues/2",
     "depends_on": ["docs/architecture.md"],
     "decision_log": "docs/decision-log.md",
     "open_questions": [

@@ -1,9 +1,9 @@
 # Test Plan — TikTok LIVE Platform
 
 **Owner Agent**: Copilot (QA, CI/CD & Developer Experience Lead)  
-**Depends on**: docs/architecture.md, docs/storage.md, docs/contracts/unified-event.v1.schema.json, docs/fixtures.md, postman/ttlc.postman_collection.json  
+**Depends on**: docs/architecture.md, docs/storage.md, docs/contracts/unified-event.v1.schema.json, docs/fixtures.md, postman/collections/ttlc.postman_collection.json  
 **GitHub Issue**: [#6](https://github.com/rainbowkillah/tiktok-live-platform/issues/6)  
-**Status**: Draft — Pending Peer Review
+**Status**: ✅ Approved — Reviewed by Claude 2026-02-23 (see `.reviews/reviews.claude.md`)
 
 ---
 
@@ -102,11 +102,11 @@ Validates every public API endpoint returns the expected HTTP status, headers, a
 
 **Tool**: Newman (Postman CLI)  
 **Command**: `npm run test:api`  
-**Collection**: `postman/ttlc.postman_collection.json`  
+**Collection**: `postman/collections/ttlc.postman_collection.json`  
 **Environment**: `postman/environments/ci.postman_environment.json`  
 **Location**: N/A (collection is the test)
 
-See `postman/ttlc.postman_collection.json` for request details and assertions.
+See `postman/collections/ttlc.postman_collection.json` for request details and assertions.
 
 ### 2.5 End-to-End Tests (Phase 3)
 
