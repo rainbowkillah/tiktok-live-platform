@@ -1,0 +1,211 @@
+name: Project Automation (Project #15)
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, ready_for_review, synchronize, closed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  project-sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.PROJECTS_PAT }}
+      PROJECT_OWNER: rainbowkillah
+      PROJECT_NUMBER: 15
+
+      # Your Project's Status field + options
+      STATUS_FIELD_NAME: Status
+      STATUS_TODO: Todo
+      STATUS_PEER_REVIEW: Peer Review
+      STATUS_IN_PROGRESS: In Progress
+      STATUS_BLOCKER: Blocker
+      STATUS_GATED: Gated
+      STATUS_DONE: Done
+
+    steps:
+      - name: Fail fast if PAT missing
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::Missing secret PROJECTS_PAT. Add a classic PAT with 'project' scope."
+            exit 1
+          fi
+
+      - name: Extract linked issue numbers from PR
+        id: issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const text = `${pr.title}\n\n${pr.body || ""}`;
+            const nums = [...text.matchAll(/#(\d+)/g)].map(m => Number(m[1]));
+            const unique = [...new Set(nums)].filter(n => n > 0);
+            core.info(`Found issue refs: ${unique.join(", ") || "(none)"}`);
+            core.setOutput("issue_numbers", unique.join(","));
+
+      - name: Stop if no linked issues
+        if: steps.issues.outputs.issue_numbers == ''
+        run: |
+          echo "No linked issues found; nothing to sync to Project."
+          exit 0
+
+      - name: Determine desired Status for this PR event
+        id: status
+        run: |
+          set -euo pipefail
+          ACTION="${{ github.event.action }}"
+          MERGED="${{ github.event.pull_request.merged || false }}"
+
+          TARGET="${STATUS_IN_PROGRESS}"
+
+          # When PR is ready for review, move to Peer Review
+          if [ "$ACTION" = "ready_for_review" ]; then
+            TARGET="${STATUS_PEER_REVIEW}"
+          fi
+
+          # When merged, Done
+          if [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then
+            TARGET="${STATUS_DONE}"
+          fi
+
+          echo "target_status=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Target status: $TARGET"
+
+      - name: Sync issues into Project #15 and set Status
+        env:
+          ISSUE_NUMBERS: ${{ steps.issues.outputs.issue_numbers }}
+          TARGET_STATUS: ${{ steps.status.outputs.target_status }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          QUERY='
+          query($login:String!, $number:Int!, $fieldName:String!) {
+            user(login:$login) {
+              projectV2(number:$number) {
+                id
+                field(name:$fieldName) {
+                  ... on ProjectV2SingleSelectField {
+                    id
+                    options { id name }
+                  }
+                }
+              }
+            }
+          }'
+
+          DATA="$(gh api graphql \
+            -f query="$QUERY" \
+            -f login="$PROJECT_OWNER" \
+            -F number="$PROJECT_NUMBER" \
+            -f fieldName="$STATUS_FIELD_NAME")"
+
+          PROJECT_ID="$(echo "$DATA" | jq -r '.data.user.projectV2.id')"
+          FIELD_ID="$(echo "$DATA" | jq -r '.data.user.projectV2.field.id')"
+
+          if [ "$PROJECT_ID" = "null" ] || [ -z "$PROJECT_ID" ]; then
+            echo "::error::Could not resolve Project v2. Check owner/number."
+            exit 1
+          fi
+
+          OPTION_ID="$(echo "$DATA" | jq -r --arg name "$TARGET_STATUS" '.data.user.projectV2.field.options[] | select(.name==$name) | .id' | head -n 1)"
+
+          if [ -z "$OPTION_ID" ] || [ "$OPTION_ID" = "null" ]; then
+            echo "::error::Could not find Status option named '$TARGET_STATUS'."
+            echo "Available options:"
+            echo "$DATA" | jq -r '.data.user.projectV2.field.options[].name'
+            exit 1
+          fi
+
+          IFS=',' read -ra NUMS <<< "$ISSUE_NUMBERS"
+
+          for N in "${NUMS[@]}"; do
+            N="$(echo "$N" | xargs)"
+            echo "---- Processing issue #$N"
+
+            OWNER="$(echo "$REPO" | cut -d/ -f1)"
+            NAME="$(echo "$REPO" | cut -d/ -f2)"
+
+            ISSUE_QUERY='
+            query($owner:String!, $name:String!, $number:Int!) {
+              repository(owner:$owner, name:$name) {
+                issue(number:$number) { id url }
+              }
+            }'
+
+            ISSUE_DATA="$(gh api graphql \
+              -f query="$ISSUE_QUERY" \
+              -f owner="$OWNER" \
+              -f name="$NAME" \
+              -F number="$N")"
+
+            CONTENT_ID="$(echo "$ISSUE_DATA" | jq -r '.data.repository.issue.id')"
+            ISSUE_URL="$(echo "$ISSUE_DATA" | jq -r '.data.repository.issue.url')"
+
+            if [ "$CONTENT_ID" = "null" ] || [ -z "$CONTENT_ID" ]; then
+              echo "::warning::Issue #$N not found in $REPO. Skipping."
+              continue
+            fi
+
+            echo "Issue: $ISSUE_URL"
+
+            ADD_MUTATION='
+            mutation($projectId:ID!, $contentId:ID!) {
+              addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) {
+                item { id }
+              }
+            }'
+
+            ADD_RES="$(gh api graphql \
+              -f query="$ADD_MUTATION" \
+              -f projectId="$PROJECT_ID" \
+              -f contentId="$CONTENT_ID" 2>/dev/null || true)"
+
+            ITEM_ID="$(echo "$ADD_RES" | jq -r '.data.addProjectV2ItemById.item.id' 2>/dev/null || echo "")"
+
+            if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
+              # Item may already exist—look it up (first 200 items)
+              LOOKUP='
+              query($projectId:ID!) {
+                node(id:$projectId) {
+                  ... on ProjectV2 {
+                    items(first:200) {
+                      nodes {
+                        id
+                        content { ... on Issue { id } }
+                      }
+                    }
+                  }
+                }
+              }'
+
+              ITEMS="$(gh api graphql -f query="$LOOKUP" -f projectId="$PROJECT_ID")"
+              ITEM_ID="$(echo "$ITEMS" | jq -r --arg cid "$CONTENT_ID" '.data.node.items.nodes[] | select(.content.id==$cid) | .id' | head -n 1)"
+            fi
+
+            if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
+              echo "::error::Could not resolve Project item ID for issue #$N."
+              exit 1
+            fi
+
+            UPDATE_MUTATION='
+            mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {
+              updateProjectV2ItemFieldValue(input:{
+                projectId:$projectId,
+                itemId:$itemId,
+                fieldId:$fieldId,
+                value:{ singleSelectOptionId:$optionId }
+              }) { projectV2Item { id } }
+            }'
+
+            gh api graphql \
+              -f query="$UPDATE_MUTATION" \
+              -f projectId="$PROJECT_ID" \
+              -f itemId="$ITEM_ID" \
+              -f fieldId="$FIELD_ID" \
+              -f optionId="$OPTION_ID" >/dev/null
+
+            echo "✅ Set Status = $TARGET_STATUS for issue #$N"
+          done
