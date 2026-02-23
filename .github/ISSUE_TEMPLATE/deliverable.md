@@ -1,0 +1,130 @@
+---
+name: deliverable
+about: Generates a projects/repo deliverable
+title: "[Deliverable] <short descriptive title>"
+labels: ''
+assignees: ''
+
+---
+
+name: Deliverable / Spec Task
+description: Create or update a structured deliverable (architecture, schema, storage, UI, test plan, etc.)
+title: "[Deliverable] <short descriptive title>"
+labels:
+  - deliverable
+  - needs-review
+assignees: []
+
+body:
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      description: Which execution phase does this belong to?
+      options:
+        - Phase 1 – Discovery & Planning
+        - Phase 2 – Skeleton Stack
+        - Phase 3 – Rule Engine & Forwarder
+        - Phase 4 – Hardening & Deployment
+    validations:
+      required: true
+
+  - type: input
+    id: owner
+    attributes:
+      label: Owner Agent / Responsible Party
+      placeholder: Claude / Codex / Copilot / Gemini / @username
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What does this deliverable accomplish?
+      placeholder: Define the purpose and intended outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included in this deliverable?
+      placeholder: Be specific. Bullet points preferred.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of Scope
+      description: What is explicitly NOT included?
+      placeholder: Prevent scope creep here.
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: What must exist or be approved before this is completed?
+      placeholder: Related issues, contracts, docs, PRs.
+
+  - type: textarea
+    id: decision_log
+    attributes:
+      label: Decision Log
+      description: Record major decisions made for this deliverable.
+      placeholder: |
+        - Decision:
+        - Alternatives considered:
+        - Rationale:
+        - Consequences:
+
+  - type: textarea
+    id: open_questions
+    attributes:
+      label: Open Questions
+      description: What is unresolved?
+      placeholder: Bullet list of unknowns.
+
+  - type: checkboxes
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: This issue is NOT complete until all are satisfied.
+      options:
+        - label: Deliverable artifact created (docs/code/schema/etc.)
+        - label: Links to related documents and issues added
+        - label: Validation checklist included in artifact
+        - label: Security/privacy considerations addressed (if applicable)
+        - label: Testability defined (if applicable)
+
+  - type: checkboxes
+    id: review_status
+    attributes:
+      label: Review Outcome (to be completed by reviewer)
+      options:
+        - label: ✅ Approved
+        - label: ⚠️ Approved with changes
+        - label: ❌ Rejected (requires revision)
+
+  - type: textarea
+    id: validation_steps
+    attributes:
+      label: Validation Steps
+      description: How should reviewers verify correctness?
+      placeholder: Concrete steps, commands, or review checklist.
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / Concerns
+      description: Architectural, technical, or security risks.
+      placeholder: Bullet list.
+
+  - type: textarea
+    id: links
+    attributes:
+      label: Related Links
+      description: Link to docs path, PRs, project board item, etc.
+      placeholder: URLs or file paths.
