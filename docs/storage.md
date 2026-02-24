@@ -2,7 +2,7 @@
 
 **Owner Agent**: Claude (Program Lead & Systems Architect)
 **Depends on**: [docs/architecture.md](architecture.md), [docs/contracts/unified-event.v1.schema.json](contracts/unified-event.v1.schema.json)
-**GitHub Issue**: [#243](https://github.com/rainbowkillah/crispy-enigma/issues/243)
+**GitHub Issue**: [#3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3)
 **Status**: Approved with required changes (applied)
 
 ---

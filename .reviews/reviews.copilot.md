@@ -3,7 +3,7 @@
 **Reviewer**: Copilot  
 **Date**: 2026-02-22  
 **Document**: [docs/storage.md](storage.md)  
-**GitHub Issue**: [#243](https://github.com/rainbowkillah/crispy-enigma/issues/243)
+**GitHub Issue**: [#3](https://github.com/rainbowkillah/tiktok-live-platform/issues/3)
 
 ---
 

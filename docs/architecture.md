@@ -2,7 +2,7 @@
 
 **Owner Agent**: Claude (Program Lead & Systems Architect)
 **Depends on**: None (root document)
-**GitHub Issue**: [#241](https://github.com/rainbowkillah/crispy-enigma/issues/241)
+**GitHub Issue**: [#1](https://github.com/rainbowkillah/tiktok-live-platform/issues/1)
 **Status**: Approved with required changes (applied)
 
 ---
